@@ -12,28 +12,36 @@ const importError = ref<string | null>(null)
 
 const features = [
   {
-    icon: '🏆',
-    title: '活跃度分析',
-    desc: '谁是群里的潜水王？',
+    icon: '⚡️',
+    title: '极致性能',
+    desc: '将聊天记录导入为本地数据库方案，千万级数据秒级索引，体验流畅',
     color: 'text-yellow-500',
     bg: 'bg-yellow-50',
     delay: '0ms',
   },
   {
-    icon: '☁️',
-    title: '词云生成',
-    desc: '大家最爱说什么？',
+    icon: '📊',
+    title: '全维分析',
+    desc: '从群榜单到群语录，全方位解读群聊数据，发现隐藏的趣味。',
     color: 'text-blue-500',
     bg: 'bg-blue-50',
     delay: '100ms',
   },
   {
-    icon: '❤️',
-    title: '情感分析',
-    desc: '群聊氛围怎么样？',
-    color: 'text-pink-500',
-    bg: 'bg-pink-50',
+    icon: '🔒',
+    title: '隐私至上',
+    desc: '聊天记录本地存储本地分析，保护你的隐私。',
+    color: 'text-green-500',
+    bg: 'bg-green-50',
     delay: '200ms',
+  },
+  {
+    icon: '🤖',
+    title: 'AI 洞察',
+    desc: '内置 AI Agent，智能回答关于群聊的一切疑问，挖掘数据背后的内容。',
+    color: 'text-purple-500',
+    bg: 'bg-purple-50',
+    delay: '300ms',
   },
 ]
 
@@ -111,123 +119,136 @@ function getProgressDetail(): string {
 </script>
 
 <template>
-  <div class="relative flex h-full w-full overflow-hidden bg-white dark:bg-gray-950">
+  <div class="relative flex h-full w-full overflow-hidden bg-gray-50 dark:bg-gray-950">
+    <!-- Animated Background -->
+    <div class="absolute inset-0 overflow-hidden pointer-events-none">
+      <div
+        class="absolute -top-[20%] -left-[10%] h-[70%] w-[70%] rounded-full bg-purple-200/30 blur-[120px] mix-blend-multiply animate-blob dark:bg-purple-900/20 dark:mix-blend-screen"
+      ></div>
+      <div
+        class="absolute -top-[20%] -right-[10%] h-[70%] w-[70%] rounded-full bg-pink-200/30 blur-[120px] mix-blend-multiply animate-blob animation-delay-2000 dark:bg-pink-900/20 dark:mix-blend-screen"
+      ></div>
+      <div
+        class="absolute -bottom-[20%] left-[20%] h-[70%] w-[70%] rounded-full bg-blue-200/30 blur-[120px] mix-blend-multiply animate-blob animation-delay-4000 dark:bg-blue-900/20 dark:mix-blend-screen"
+      ></div>
+    </div>
+
     <!-- Content Container -->
-    <div class="relative flex h-full w-full flex-col items-center justify-center px-4">
-      <!-- Hero Section -->
-      <div class="mb-12 text-center">
-        <h1
-          class="mb-4 bg-linear-to-r from-pink-600 via-pink-500 to-rose-400 bg-clip-text text-5xl font-black tracking-tight text-transparent sm:text-6xl"
-        >
-          ChatLab
-        </h1>
-        <p class="text-lg font-medium text-gray-500 dark:text-gray-400">你的本地聊天分析实验室</p>
-      </div>
-
-      <!-- Feature Cards -->
-      <div class="mb-12 grid max-w-4xl grid-cols-1 gap-6 sm:grid-cols-3">
-        <div
-          v-for="feature in features"
-          :key="feature.title"
-          class="group relative transform cursor-default rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:shadow-pink-500/10 dark:border-gray-800 dark:bg-gray-900"
-          :style="{ animationDelay: feature.delay }"
-        >
-          <div class="mb-4 text-4xl transition-transform duration-300 group-hover:scale-110">
-            {{ feature.icon }}
-          </div>
-          <h3 class="mb-2 text-lg font-bold text-gray-900 dark:text-white">{{ feature.title }}</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ feature.desc }}</p>
-        </div>
-      </div>
-
-      <!-- Actions -->
-      <div class="flex flex-col items-center space-y-6">
-        <!-- Import Drop Zone -->
-        <FileDropZone
-          :accept="['.json', '.txt']"
-          :disabled="isImporting"
-          class="w-full max-w-2xl"
-          @files="handleFileDrop"
-        >
-          <template #default="{ isDragOver, openFileDialog }">
-            <div
-              class="group relative flex w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-pink-300 bg-white px-12 py-12 transition-all duration-300 hover:border-pink-400 hover:bg-pink-50/50 focus:outline-none focus:ring-4 focus:ring-pink-500/20 dark:border-pink-700 dark:bg-gray-900 dark:hover:border-pink-500 dark:hover:bg-pink-900/10"
-              :class="{
-                'border-pink-500 bg-pink-50 dark:border-pink-400 dark:bg-pink-900/20': isDragOver && !isImporting,
-                'cursor-not-allowed opacity-70': isImporting,
-                'hover:scale-[1.02] hover:shadow-xl hover:shadow-pink-500/10': !isImporting,
-              }"
-              @click="!isImporting && handleClickImport()"
+    <div class="relative h-full w-full overflow-y-auto z-10">
+      <div class="flex min-h-full w-full flex-col items-center justify-center px-4 py-12">
+        <!-- Hero Section -->
+        <div class="xl:mb-16 mb-8 text-center">
+          <div class="relative inline-block">
+            <h1
+              class="mb-6 bg-linear-to-r from-pink-500 via-pink-500 to-violet-500 bg-clip-text text-6xl font-black tracking-tight text-transparent sm:text-8xl drop-shadow-sm animate-gradient-x bg-size-[200%_auto]"
             >
-              <!-- Icon -->
-              <div
-                class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-pink-100 to-rose-100 transition-transform duration-300 dark:from-pink-900/30 dark:to-rose-900/30"
-                :class="{ 'scale-110': isDragOver && !isImporting, 'animate-pulse': isImporting }"
-              >
-                <UIcon
-                  v-if="!isImporting"
-                  name="i-heroicons-arrow-up-tray"
-                  class="h-8 w-8 text-pink-600 transition-transform group-hover:-translate-y-1 dark:text-pink-400"
-                />
-                <UIcon
-                  v-else
-                  name="i-heroicons-arrow-path"
-                  class="h-8 w-8 animate-spin text-pink-600 dark:text-pink-400"
-                />
-              </div>
-
-              <!-- Text -->
-              <div class="w-full text-center">
-                <template v-if="isImporting && importProgress">
-                  <!-- 导入中显示进度 -->
-                  <p class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{{ getProgressText() }}</p>
-                  <div class="mx-auto w-full max-w-md">
-                    <UProgress v-model="importProgress.progress" size="md" />
-                  </div>
-                  <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                    {{ getProgressDetail() }}
-                  </p>
-                </template>
-                <template v-else>
-                  <!-- 默认状态 -->
-                  <p class="text-lg font-semibold text-gray-900 dark:text-white">
-                    {{ isDragOver ? '松开鼠标导入文件' : '点击选择或拖拽文件到这里' }}
-                  </p>
-                  <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                    支持 QQ、微信、Discord、Snapchat、Reddit、TikTok 等聊天记录（JSON/TXT 格式）
-                  </p>
-                </template>
-              </div>
-            </div>
-          </template>
-        </FileDropZone>
-
-        <!-- Error Message -->
-        <div
-          v-if="importError"
-          class="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400"
-        >
-          <UIcon name="i-heroicons-exclamation-circle" class="h-5 w-5 shrink-0" />
-          <span>{{ importError }}</span>
+              ChatLab
+            </h1>
+          </div>
+          <p class="text-xl font-medium text-gray-600 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed">
+            你的本地聊天分析实验室
+          </p>
         </div>
 
-        <!-- Tutorial Links -->
-        <div class="flex items-center space-x-6 text-sm font-medium text-gray-400">
-          <button
-            class="flex items-center transition-colors hover:text-gray-600 dark:hover:text-gray-300"
-            @click="openTutorial('wechat')"
+        <!-- Feature Cards -->
+        <div class="xl:mb-16 mb-8 grid max-w-6xl grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 px-4">
+          <div
+            v-for="feature in features"
+            :key="feature.title"
+            class="group relative overflow-hidden rounded-3xl border border-transparent p-4 transition-all duration-500"
           >
-            <UIcon name="i-simple-icons-wechat" class="mr-1.5 h-4 w-4" />
-            微信导入教程
-          </button>
-          <span class="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600"></span>
-          <button
-            class="flex items-center transition-colors hover:text-gray-600 dark:hover:text-gray-300"
-            @click="openTutorial('qq')"
+            <div class="relative z-10">
+              <div class="mb-3 flex items-center">
+                <div
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-500 group-hover:scale-110 group-hover:rotate-3"
+                >
+                  <span class="text-xl filter drop-shadow-sm">{{ feature.icon }}</span>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">
+                  {{ feature.title }}
+                </h3>
+              </div>
+              <p class="text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                {{ feature.desc }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-col items-center space-y-6">
+          <!-- Import Drop Zone -->
+          <FileDropZone
+            :accept="['.json', '.txt']"
+            :disabled="isImporting"
+            class="w-full max-w-4xl"
+            @files="handleFileDrop"
           >
-            <UIcon name="i-simple-icons-tencentqq" class="mr-1.5 h-4 w-4" />
-            QQ导入教程
-          </button>
+            <template #default="{ isDragOver, openFileDialog }">
+              <div
+                class="group relative flex w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-pink-300/50 bg-white/50 px-8 py-8 backdrop-blur-sm transition-all duration-300 hover:border-pink-400 hover:bg-white/80 hover:shadow-lg hover:shadow-pink-500/10 focus:outline-none focus:ring-4 focus:ring-pink-500/20 sm:px-12 sm:py-12 dark:border-pink-700/50 dark:bg-gray-900/50 dark:hover:border-pink-500 dark:hover:bg-gray-900/80"
+                :class="{
+                  'border-pink-500 bg-pink-50/50 dark:border-pink-400 dark:bg-pink-900/20': isDragOver && !isImporting,
+                  'cursor-not-allowed opacity-70': isImporting,
+                  'hover:scale-[1.02]': !isImporting,
+                }"
+                @click="!isImporting && handleClickImport()"
+              >
+                <!-- Icon -->
+                <div
+                  class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-pink-100 to-rose-100 transition-transform duration-300 dark:from-pink-900/30 dark:to-rose-900/30"
+                  :class="{ 'scale-110': isDragOver && !isImporting, 'animate-pulse': isImporting }"
+                >
+                  <UIcon
+                    v-if="!isImporting"
+                    name="i-heroicons-arrow-up-tray"
+                    class="h-8 w-8 text-pink-600 transition-transform group-hover:-translate-y-1 dark:text-pink-400"
+                  />
+                  <UIcon
+                    v-else
+                    name="i-heroicons-arrow-path"
+                    class="h-8 w-8 animate-spin text-pink-600 dark:text-pink-400"
+                  />
+                </div>
+
+                <!-- Text -->
+                <div class="w-full text-center">
+                  <template v-if="isImporting && importProgress">
+                    <!-- 导入中显示进度 -->
+                    <p class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{{ getProgressText() }}</p>
+                    <div class="mx-auto w-full max-w-md">
+                      <UProgress v-model="importProgress.progress" size="md" />
+                    </div>
+                    <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                      {{ getProgressDetail() }}
+                    </p>
+                  </template>
+                  <template v-else>
+                    <!-- 默认状态 -->
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white">
+                      {{ isDragOver ? '松开鼠标导入文件' : '点击选择或拖拽文件到这里' }}
+                    </p>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </FileDropZone>
+
+          <!-- Supported Formats Text -->
+          <p class="text-sm text-gray-400 dark:text-gray-500">
+            支持 QQ、微信、Discord、Snapchat、Reddit、TikTok 等聊天记录
+          </p>
+
+          <!-- Error Message -->
+          <div
+            v-if="importError"
+            class="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400"
+          >
+            <UIcon name="i-heroicons-exclamation-circle" class="h-5 w-5 shrink-0" />
+            <span>{{ importError }}</span>
+          </div>
+
+          <UButton @click="openTutorial('wechat')">查看聊天记录导入教程 →</UButton>
         </div>
       </div>
     </div>
