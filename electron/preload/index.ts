@@ -723,20 +723,41 @@ const llmApi = {
   },
 }
 
+// 用户自定义提示词配置
+interface PromptConfig {
+  roleDefinition: string
+  responseRules: string
+}
+
 // Agent API - AI Agent 功能（带 Function Calling）
 const agentApi = {
   /**
    * 执行 Agent 对话（流式）
    * Agent 会自动调用工具获取数据并生成回答
+   * @param historyMessages 对话历史（可选，用于上下文关联）
+   * @param chatType 聊天类型（'group' | 'private'）
+   * @param promptConfig 用户自定义提示词配置（可选）
    * @returns 返回 { requestId, promise }，requestId 可用于中止请求
    */
   runStream: (
     userMessage: string,
     context: ToolContext,
-    onChunk?: (chunk: AgentStreamChunk) => void
+    onChunk?: (chunk: AgentStreamChunk) => void,
+    historyMessages?: Array<{ role: 'user' | 'assistant'; content: string }>,
+    chatType?: 'group' | 'private',
+    promptConfig?: PromptConfig
   ): { requestId: string; promise: Promise<{ success: boolean; result?: AgentResult; error?: string }> } => {
     const requestId = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    console.log('[preload] Agent runStream 开始，requestId:', requestId)
+    console.log(
+      '[preload] Agent runStream 开始，requestId:',
+      requestId,
+      'historyLength:',
+      historyMessages?.length ?? 0,
+      'chatType:',
+      chatType ?? 'group',
+      'hasPromptConfig:',
+      !!promptConfig
+    )
 
     const promise = new Promise<{ success: boolean; result?: AgentResult; error?: string }>((resolve) => {
       // 监听流式 chunks
@@ -764,9 +785,9 @@ const agentApi = {
       ipcRenderer.on('agent:streamChunk', chunkHandler)
       ipcRenderer.on('agent:complete', completeHandler)
 
-      // 发起请求
+      // 发起请求（传递历史消息、聊天类型和提示词配置）
       ipcRenderer
-        .invoke('agent:runStream', requestId, userMessage, context)
+        .invoke('agent:runStream', requestId, userMessage, context, historyMessages, chatType, promptConfig)
         .then((result) => {
           console.log('[preload] Agent invoke 返回:', result)
           if (!result.success) {

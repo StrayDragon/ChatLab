@@ -6,13 +6,9 @@ import { storeToRefs } from 'pinia'
 import type { AnalysisSession, MemberActivity, HourlyActivity, DailyActivity, MessageType } from '@/types/chat'
 import { formatDateRange } from '@/utils'
 import UITabs from '@/components/UI/Tabs.vue'
-import OverviewTab from '@/components/analysis/OverviewTab.vue'
-import RankingTab from '@/components/analysis/RankingTab.vue'
-import TimelineTab from '@/components/analysis/TimelineTab.vue'
-import QuotesTab from '@/components/analysis/QuotesTab.vue'
-import RelationshipsTab from '@/components/analysis/RelationshipsTab.vue'
+import PrivateOverviewTab from '@/components/analysis/PrivateOverviewTab.vue'
+import PrivateTimelineTab from '@/components/analysis/PrivateTimelineTab.vue'
 import AITab from '@/components/analysis/AITab.vue'
-import MemberTab from '@/components/analysis/MemberTab.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,14 +29,10 @@ const availableYears = ref<number[]>([])
 const selectedYear = ref<number>(0) // 0 表示全部
 const isInitialLoad = ref(true) // 用于跳过初始加载时的 watch 触发，并控制首屏加载状态
 
-// Tab 配置
+// Tab 配置 - 私聊有总览、趋势和 AI
 const tabs = [
   { id: 'overview', label: '总览', icon: 'i-heroicons-chart-pie' },
-  { id: 'ranking', label: '群榜单', icon: 'i-heroicons-trophy' },
-  { id: 'quotes', label: '群语录', icon: 'i-heroicons-chat-bubble-bottom-center-text' },
-  { id: 'relationships', label: '群关系', icon: 'i-heroicons-heart' },
-  { id: 'timeline', label: '群趋势', icon: 'i-heroicons-chart-bar' },
-  { id: 'members', label: '群成员', icon: 'i-heroicons-user-group' },
+  { id: 'timeline', label: '趋势', icon: 'i-heroicons-chart-bar' },
   { id: 'ai', label: 'AI实验室', icon: 'i-heroicons-sparkles' },
 ]
 
@@ -67,13 +59,6 @@ const yearOptions = computed(() => {
     options.push({ label: `${year}年`, value: year })
   }
   return options
-})
-
-// 计算属性
-const topMembers = computed(() => memberActivity.value.slice(0, 3))
-const bottomMembers = computed(() => {
-  if (memberActivity.value.length <= 1) return []
-  return [...memberActivity.value].sort((a, b) => a.messageCount - b.messageCount).slice(0, 1)
 })
 
 // 当前筛选后的消息总数
@@ -123,9 +108,6 @@ async function loadBaseData() {
     timeRange.value = range
 
     // 初始化年份选择
-    // 1. 优先使用 URL 参数中的年份
-    // 2. 否则默认选择最近的年份（years 已按降序排列）
-    // 3. 如果没有年份数据，选 0 (全部)
     const queryYear = Number(route.query.year)
     if (queryYear === 0 || (queryYear && years.includes(queryYear))) {
       selectedYear.value = queryYear
@@ -178,10 +160,6 @@ async function loadData() {
 watch(
   () => route.params.id,
   () => {
-    // 切换会话时，重置 activeTab 为默认值（如果 URL 中没有 tab 参数）
-    // 注意：sidebar 导航通常会 push 新的 URL，不带 query 参数，所以这里会自动重置
-    // 但为了保险，我们可以在这里强制重置，或者依赖 activeTab 的初始化逻辑（它只在组件创建时初始化）
-    // 由于组件是复用的，我们需要手动处理
     if (!route.query.tab) {
       activeTab.value = 'overview'
     } else {
@@ -191,26 +169,23 @@ watch(
   }
 )
 
-// 监听会话变化 (syncSession 会触发 currentSessionId 变化)
+// 监听会话变化
 watch(
   currentSessionId,
   () => {
-    // 年份筛选会在 loadBaseData 中自动设置为最近年份
     loadData()
   },
   { immediate: true }
 )
 
-// 监听年份筛选变化（仅用户手动切换年份时触发）
+// 监听年份筛选变化
 watch(selectedYear, () => {
-  // 跳过初始加载时的触发，避免重复加载
   if (isInitialLoad.value) return
   loadAnalysisData()
 })
 
 // 同步状态到 URL
 watch([activeTab, selectedYear], ([newTab, newYear]) => {
-  // 避免在初始化过程中频繁更新 URL
   if (isInitialLoad.value) return
 
   router.replace({
@@ -224,7 +199,6 @@ watch([activeTab, selectedYear], ([newTab, newYear]) => {
 
 onMounted(() => {
   syncSession()
-  // loadData is triggered by currentSessionId watch
 })
 </script>
 
@@ -248,15 +222,14 @@ onMounted(() => {
             <div
               class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-pink-400 to-pink-600"
             >
-              <UIcon name="i-heroicons-chat-bubble-left-right" class="h-5 w-5 text-white" />
+              <UIcon name="i-heroicons-user" class="h-5 w-5 text-white" />
             </div>
             <div>
               <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ session.name }}
               </h1>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ dateRangeText }}，{{ selectedYear ? filteredMemberCount : session.memberCount }} 位成员共聊了
-                {{ selectedYear ? filteredMessageCount : session.messageCount }} 条消息
+                {{ dateRangeText }}，共 {{ selectedYear ? filteredMessageCount : session.messageCount }} 条消息
               </p>
             </div>
           </div>
@@ -280,7 +253,7 @@ onMounted(() => {
               <span class="whitespace-nowrap">{{ tab.label }}</span>
             </button>
           </div>
-          <!-- 年份选择器靠右，允许收缩 -->
+          <!-- 年份选择器靠右 -->
           <UITabs v-model="selectedYear" :items="yearOptions" size="sm" class="min-w-0 flex-shrink" />
         </div>
       </div>
@@ -297,13 +270,11 @@ onMounted(() => {
 
         <div class="h-full">
           <Transition name="tab-slide" mode="out-in">
-            <OverviewTab
+            <PrivateOverviewTab
               v-if="activeTab === 'overview'"
               :key="'overview-' + selectedYear"
               :session="session"
               :member-activity="memberActivity"
-              :top-members="topMembers"
-              :bottom-members="bottomMembers"
               :message-types="messageTypes"
               :hourly-activity="hourlyActivity"
               :time-range="timeRange"
@@ -312,28 +283,7 @@ onMounted(() => {
               :filtered-member-count="filteredMemberCount"
               :time-filter="timeFilter"
             />
-            <RankingTab
-              v-else-if="activeTab === 'ranking'"
-              :key="'ranking-' + selectedYear"
-              :session-id="currentSessionId!"
-              :member-activity="memberActivity"
-              :time-filter="timeFilter"
-              :selected-year="selectedYear"
-              :available-years="availableYears"
-            />
-            <QuotesTab
-              v-else-if="activeTab === 'quotes'"
-              :key="'quotes-' + selectedYear"
-              :session-id="currentSessionId!"
-              :time-filter="timeFilter"
-            />
-            <RelationshipsTab
-              v-else-if="activeTab === 'relationships'"
-              :key="'relationships-' + selectedYear"
-              :session-id="currentSessionId!"
-              :time-filter="timeFilter"
-            />
-            <TimelineTab
+            <PrivateTimelineTab
               v-else-if="activeTab === 'timeline'"
               :key="'timeline-' + selectedYear"
               :session-id="currentSessionId!"
@@ -342,19 +292,13 @@ onMounted(() => {
               :time-range="timeRange"
               :time-filter="timeFilter"
             />
-            <MemberTab
-              v-else-if="activeTab === 'members'"
-              :key="'members-' + selectedYear"
-              :session-id="currentSessionId!"
-              @data-changed="loadData"
-            />
             <AITab
               v-else-if="activeTab === 'ai'"
               :key="'ai-' + selectedYear"
               :session-id="currentSessionId!"
               :session-name="session.name"
               :time-filter="timeFilter"
-              chat-type="group"
+              chat-type="private"
             />
           </Transition>
         </div>

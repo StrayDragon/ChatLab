@@ -13,6 +13,11 @@ export const router = createRouter({
       component: () => import('@/pages/group-chat.vue'),
     },
     {
+      path: '/private-chat/:id',
+      name: 'private-chat',
+      component: () => import('@/pages/private-chat.vue'),
+    },
+    {
       path: '/tools',
       name: 'tools',
       component: () => import('@/pages/tools.vue'),

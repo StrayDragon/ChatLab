@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import { storeToRefs } from 'pinia'
 import ConversationList from './ConversationList.vue'
 import DataSourcePanel from './DataSourcePanel.vue'
 import ChatMessage from './ChatMessage.vue'
@@ -12,6 +13,7 @@ const props = defineProps<{
   sessionId: string
   sessionName: string
   timeFilter?: { startTs: number; endTs: number }
+  chatType?: 'group' | 'private'
 }>()
 
 // 使用 AI 对话 Composable
@@ -30,10 +32,43 @@ const {
   loadMoreSourceMessages,
   updateMaxMessages,
   stopGeneration,
-} = useAIChat(props.sessionId, props.timeFilter)
+} = useAIChat(props.sessionId, props.timeFilter, props.chatType ?? 'group')
 
 // Store
 const chatStore = useChatStore()
+const { groupPresets, privatePresets, aiPromptSettings } = storeToRefs(chatStore)
+
+// 当前聊天类型
+const currentChatType = computed(() => props.chatType ?? 'group')
+
+// 当前类型对应的预设列表
+const currentPresets = computed(() => (currentChatType.value === 'group' ? groupPresets.value : privatePresets.value))
+
+// 当前激活的预设 ID
+const currentActivePresetId = computed(() =>
+  currentChatType.value === 'group'
+    ? aiPromptSettings.value.activeGroupPresetId
+    : aiPromptSettings.value.activePrivatePresetId
+)
+
+// 当前激活的预设
+const currentActivePreset = computed(
+  () => currentPresets.value.find((p) => p.id === currentActivePresetId.value) || currentPresets.value[0]
+)
+
+// 预设下拉菜单状态
+const isPresetPopoverOpen = ref(false)
+
+// 设置激活预设
+function setActivePreset(presetId: string) {
+  if (currentChatType.value === 'group') {
+    chatStore.setActiveGroupPreset(presetId)
+  } else {
+    chatStore.setActivePrivatePreset(presetId)
+  }
+  // 关闭下拉菜单
+  isPresetPopoverOpen.value = false
+}
 
 // UI 状态
 const isSourcePanelCollapsed = ref(false)
@@ -242,7 +277,7 @@ watch(
                       class="mt-0.5 h-4 w-4 shrink-0"
                       :class="[
                         tool.status === 'running'
-                          ? 'animate-spin text-violet-500'
+                          ? 'animate-spin text-pink-500'
                           : tool.status === 'done'
                             ? 'text-green-500'
                             : 'text-red-500',
@@ -261,7 +296,7 @@ watch(
                             <span
                               v-for="(kw, kwIdx) in tool.params.keywords as string[]"
                               :key="kwIdx"
-                              class="ml-1 inline-flex rounded bg-violet-100 px-1.5 py-0.5 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                              class="ml-1 inline-flex rounded bg-pink-100 px-1.5 py-0.5 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300"
                             >
                               {{ kw }}
                             </span>
@@ -341,7 +376,7 @@ watch(
             <!-- AI 思考中指示器 -->
             <div v-if="isAIThinking && !messages[messages.length - 1]?.content" class="flex items-start gap-3">
               <div
-                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-violet-500 to-purple-600"
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-pink-500 to-pink-600"
               >
                 <UIcon name="i-heroicons-sparkles" class="h-4 w-4 text-white" />
               </div>
@@ -353,7 +388,7 @@ watch(
                       class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
                       :class="[
                         currentToolStatus.status === 'running'
-                          ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+                          ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
                           : currentToolStatus.status === 'done'
                             ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                             : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
@@ -373,9 +408,9 @@ watch(
                       {{ currentToolStatus.displayName }}
                     </span>
                     <span v-if="currentToolStatus.status === 'running'" class="flex gap-1">
-                      <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-500 [animation-delay:0ms]" />
-                      <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-500 [animation-delay:150ms]" />
-                      <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-500 [animation-delay:300ms]" />
+                      <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-pink-500 [animation-delay:0ms]" />
+                      <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-pink-500 [animation-delay:150ms]" />
+                      <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-pink-500 [animation-delay:300ms]" />
                     </span>
                     <span
                       v-else-if="currentToolStatus.status === 'done'"
@@ -406,9 +441,9 @@ watch(
                 <div v-else class="flex items-center gap-2">
                   <span class="text-sm text-gray-600 dark:text-gray-400">正在分析问题...</span>
                   <span class="flex gap-1">
-                    <span class="h-2 w-2 animate-bounce rounded-full bg-violet-500 [animation-delay:0ms]" />
-                    <span class="h-2 w-2 animate-bounce rounded-full bg-violet-500 [animation-delay:150ms]" />
-                    <span class="h-2 w-2 animate-bounce rounded-full bg-violet-500 [animation-delay:300ms]" />
+                    <span class="h-2 w-2 animate-bounce rounded-full bg-pink-500 [animation-delay:0ms]" />
+                    <span class="h-2 w-2 animate-bounce rounded-full bg-pink-500 [animation-delay:150ms]" />
+                    <span class="h-2 w-2 animate-bounce rounded-full bg-pink-500 [animation-delay:300ms]" />
                   </span>
                 </div>
               </div>
@@ -428,13 +463,48 @@ watch(
 
             <!-- 底部状态栏 -->
             <div class="mt-2 flex items-center justify-between px-1">
-              <div class="flex items-center gap-2 text-xs text-gray-400">
-                <UIcon name="i-heroicons-sparkles" class="h-3.5 w-3.5" />
-                <span>探索 {{ sessionName }} 的聊天记录</span>
-              </div>
+              <!-- 左侧：预设选择器 -->
+              <UPopover v-model:open="isPresetPopoverOpen" :ui="{ content: 'p-0' }">
+                <button
+                  class="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                >
+                  <UIcon name="i-heroicons-chat-bubble-bottom-center-text" class="h-3.5 w-3.5" />
+                  <span class="max-w-[120px] truncate">{{ currentActivePreset?.name || '默认预设' }}</span>
+                  <UIcon name="i-heroicons-chevron-down" class="h-3 w-3" />
+                </button>
+                <template #content>
+                  <div class="w-48 py-1">
+                    <div class="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500">
+                      {{ currentChatType === 'group' ? '群聊' : '私聊' }}提示词预设
+                    </div>
+                    <button
+                      v-for="preset in currentPresets"
+                      :key="preset.id"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                      :class="[
+                        preset.id === currentActivePresetId
+                          ? 'text-pink-600 dark:text-pink-400'
+                          : 'text-gray-700 dark:text-gray-300',
+                      ]"
+                      @click="setActivePreset(preset.id)"
+                    >
+                      <UIcon
+                        :name="
+                          preset.id === currentActivePresetId
+                            ? 'i-heroicons-check-circle-solid'
+                            : 'i-heroicons-document-text'
+                        "
+                        class="h-4 w-4 shrink-0"
+                        :class="[preset.id === currentActivePresetId ? 'text-pink-500' : 'text-gray-400']"
+                      />
+                      <span class="truncate">{{ preset.name }}</span>
+                    </button>
+                  </div>
+                </template>
+              </UPopover>
 
+              <!-- 右侧：配置状态指示 -->
               <div class="flex items-center gap-3">
-                <!-- 配置状态指示 -->
                 <div
                   v-if="!isCheckingConfig"
                   class="flex items-center gap-1.5 text-xs transition-colors"

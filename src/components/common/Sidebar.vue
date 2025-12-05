@@ -115,6 +115,16 @@ function getContextMenuItems(session: AnalysisSession) {
     ],
   ]
 }
+
+// 根据会话类型获取路由名称
+function getSessionRouteName(session: AnalysisSession): string {
+  return session.type === 'private' ? 'private-chat' : 'group-chat'
+}
+
+// 判断是否是私聊
+function isPrivateChat(session: AnalysisSession): boolean {
+  return session.type === 'private'
+}
 </script>
 
 <template>
@@ -208,19 +218,25 @@ function getContextMenuItems(session: AnalysisSession) {
                     : 'text-gray-700 dark:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-800',
                   isCollapsed ? 'justify-center cursor-pointer' : 'cursor-pointer',
                 ]"
-                @click="router.push({ name: 'group-chat', params: { id: session.id } })"
+                @click="router.push({ name: getSessionRouteName(session), params: { id: session.id } })"
               >
-                <!-- Platform Icon / Text Avatar -->
+                <!-- Platform Icon / Text Avatar - 私聊和群聊使用不同样式 -->
                 <div
                   class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold"
                   :class="[
                     route.params.id === session.id
-                      ? 'bg-primary-600 text-white dark:bg-primary-500 dark:text-white'
-                      : 'bg-gray-400 text-white dark:bg-gray-600 dark:text-white',
+                      ? isPrivateChat(session)
+                        ? 'bg-pink-600 text-white dark:bg-pink-500 dark:text-white'
+                        : 'bg-primary-600 text-white dark:bg-primary-500 dark:text-white'
+                      : isPrivateChat(session)
+                        ? 'bg-gray-400 text-white dark:bg-pink-600 dark:text-white'
+                        : 'bg-gray-400 text-white dark:bg-gray-600 dark:text-white',
                     isCollapsed ? '' : 'mr-3',
                   ]"
                 >
-                  {{ session.name ? session.name.charAt(0) : '?' }}
+                  <!-- 私聊显示用户图标，群聊显示首字母 -->
+                  <UIcon v-if="isPrivateChat(session)" name="i-heroicons-user" class="h-4 w-4" />
+                  <template v-else>{{ session.name ? session.name.charAt(0) : '?' }}</template>
                 </div>
 
                 <!-- Session Info -->

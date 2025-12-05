@@ -1,6 +1,56 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { AnalysisSession, ImportProgress, KeywordTemplate } from '@/types/chat'
+import type { AnalysisSession, ImportProgress, KeywordTemplate, PromptPreset, AIPromptSettings } from '@/types/chat'
+
+// ==================== 内置提示词预设 ====================
+
+/** 默认群聊预设ID */
+export const DEFAULT_GROUP_PRESET_ID = 'builtin-group-default'
+/** 默认私聊预设ID */
+export const DEFAULT_PRIVATE_PRESET_ID = 'builtin-private-default'
+
+/** 内置群聊预设 */
+const BUILTIN_GROUP_PRESET: PromptPreset = {
+  id: DEFAULT_GROUP_PRESET_ID,
+  name: '默认群聊分析',
+  chatType: 'group',
+  roleDefinition: `你是一个专业的群聊记录分析助手。
+你的任务是帮助用户理解和分析他们的群聊记录数据。`,
+  responseRules: `1. 基于工具返回的数据回答，不要编造信息
+2. 如果数据不足以回答问题，请说明
+3. 回答要简洁明了，使用 Markdown 格式
+4. 可以引用具体的发言作为证据
+5. 对于统计数据，可以适当总结趋势和特点`,
+  isBuiltIn: true,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+}
+
+/** 内置私聊预设 */
+const BUILTIN_PRIVATE_PRESET: PromptPreset = {
+  id: DEFAULT_PRIVATE_PRESET_ID,
+  name: '默认私聊分析',
+  chatType: 'private',
+  roleDefinition: `你是一个专业的私聊记录分析助手。
+你的任务是帮助用户理解和分析他们的私聊记录数据。
+
+注意：这是一个私聊对话，只有两个人参与。你的分析应该关注：
+- 两人之间的对话互动
+- 谁更主动、谁回复更多
+- 对话的主题和内容变化
+- 不要使用"群"这个词，使用"对话"或"聊天"`,
+  responseRules: `1. 基于工具返回的数据回答，不要编造信息
+2. 如果数据不足以回答问题，请说明
+3. 回答要简洁明了，使用 Markdown 格式
+4. 可以引用具体的发言作为证据
+5. 关注两人之间的互动模式和对话特点`,
+  isBuiltIn: true,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+}
+
+/** 所有内置预设 */
+export const BUILTIN_PRESETS: PromptPreset[] = [BUILTIN_GROUP_PRESET, BUILTIN_PRIVATE_PRESET]
 
 export const useChatStore = defineStore(
   'chat',
@@ -276,6 +326,111 @@ export const useChatStore = defineStore(
     // ==================== 已删除的预设模板 ====================
     const deletedPresetTemplateIds = ref<string[]>([])
 
+    // ==================== AI 提示词预设管理 ====================
+    const customPromptPresets = ref<PromptPreset[]>([])
+    const aiPromptSettings = ref<AIPromptSettings>({
+      activeGroupPresetId: DEFAULT_GROUP_PRESET_ID,
+      activePrivatePresetId: DEFAULT_PRIVATE_PRESET_ID,
+    })
+
+    /** 获取所有预设（内置 + 自定义） */
+    const allPromptPresets = computed(() => [...BUILTIN_PRESETS, ...customPromptPresets.value])
+
+    /** 获取群聊可用的预设 */
+    const groupPresets = computed(() => allPromptPresets.value.filter((p) => p.chatType === 'group'))
+
+    /** 获取私聊可用的预设 */
+    const privatePresets = computed(() => allPromptPresets.value.filter((p) => p.chatType === 'private'))
+
+    /** 获取当前群聊激活的预设 */
+    const activeGroupPreset = computed(() => {
+      const preset = allPromptPresets.value.find((p) => p.id === aiPromptSettings.value.activeGroupPresetId)
+      return preset || BUILTIN_PRESETS.find((p) => p.id === DEFAULT_GROUP_PRESET_ID)!
+    })
+
+    /** 获取当前私聊激活的预设 */
+    const activePrivatePreset = computed(() => {
+      const preset = allPromptPresets.value.find((p) => p.id === aiPromptSettings.value.activePrivatePresetId)
+      return preset || BUILTIN_PRESETS.find((p) => p.id === DEFAULT_PRIVATE_PRESET_ID)!
+    })
+
+    /** 添加自定义预设 */
+    function addPromptPreset(preset: { name: string; chatType: PromptPreset['chatType']; roleDefinition: string; responseRules: string }) {
+      const newPreset: PromptPreset = {
+        ...preset,
+        id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        isBuiltIn: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }
+      customPromptPresets.value.push(newPreset)
+      return newPreset.id
+    }
+
+    /** 更新预设 */
+    function updatePromptPreset(presetId: string, updates: { name?: string; chatType?: PromptPreset['chatType']; roleDefinition?: string; responseRules?: string }) {
+      const index = customPromptPresets.value.findIndex((p) => p.id === presetId)
+      if (index !== -1) {
+        customPromptPresets.value[index] = {
+          ...customPromptPresets.value[index],
+          ...updates,
+          updatedAt: Date.now(),
+        }
+      }
+    }
+
+    /** 删除自定义预设 */
+    function removePromptPreset(presetId: string) {
+      const index = customPromptPresets.value.findIndex((p) => p.id === presetId)
+      if (index !== -1) {
+        customPromptPresets.value.splice(index, 1)
+        // 如果删除的是激活的预设，切换到默认
+        if (aiPromptSettings.value.activeGroupPresetId === presetId) {
+          aiPromptSettings.value.activeGroupPresetId = DEFAULT_GROUP_PRESET_ID
+        }
+        if (aiPromptSettings.value.activePrivatePresetId === presetId) {
+          aiPromptSettings.value.activePrivatePresetId = DEFAULT_PRIVATE_PRESET_ID
+        }
+      }
+    }
+
+    /** 复制预设 */
+    function duplicatePromptPreset(presetId: string) {
+      const source = allPromptPresets.value.find((p) => p.id === presetId)
+      if (source) {
+        return addPromptPreset({
+          name: `${source.name} (副本)`,
+          chatType: source.chatType,
+          roleDefinition: source.roleDefinition,
+          responseRules: source.responseRules,
+        })
+      }
+      return null
+    }
+
+    /** 设置群聊激活的预设 */
+    function setActiveGroupPreset(presetId: string) {
+      const preset = allPromptPresets.value.find((p) => p.id === presetId)
+      if (preset && preset.chatType === 'group') {
+        aiPromptSettings.value.activeGroupPresetId = presetId
+        notifyAIConfigChanged()
+      }
+    }
+
+    /** 设置私聊激活的预设 */
+    function setActivePrivatePreset(presetId: string) {
+      const preset = allPromptPresets.value.find((p) => p.id === presetId)
+      if (preset && preset.chatType === 'private') {
+        aiPromptSettings.value.activePrivatePresetId = presetId
+        notifyAIConfigChanged()
+      }
+    }
+
+    /** 获取指定聊天类型的激活预设 */
+    function getActivePresetForChatType(chatType: 'group' | 'private'): PromptPreset {
+      return chatType === 'group' ? activeGroupPreset.value : activePrivatePreset.value
+    }
+
     function addDeletedPresetTemplateId(id: string) {
       if (!deletedPresetTemplateIds.value.includes(id)) {
         deletedPresetTemplateIds.value.push(id)
@@ -295,8 +450,15 @@ export const useChatStore = defineStore(
       aiGlobalSettings,
       customKeywordTemplates,
       deletedPresetTemplateIds,
+      customPromptPresets,
+      aiPromptSettings,
       // Computed
       currentSession,
+      allPromptPresets,
+      groupPresets,
+      privatePresets,
+      activeGroupPreset,
+      activePrivatePreset,
       // Actions
       loadSessions,
       importFile,
@@ -312,6 +474,13 @@ export const useChatStore = defineStore(
       updateCustomKeywordTemplate,
       removeCustomKeywordTemplate,
       addDeletedPresetTemplateId,
+      addPromptPreset,
+      updatePromptPreset,
+      removePromptPreset,
+      duplicatePromptPreset,
+      setActiveGroupPreset,
+      setActivePrivatePreset,
+      getActivePresetForChatType,
     }
   },
   {
@@ -322,8 +491,8 @@ export const useChatStore = defineStore(
         storage: sessionStorage,
       },
       {
-        // 自定义模板和 AI 全局设置：localStorage（持久保存）
-        pick: ['customKeywordTemplates', 'deletedPresetTemplateIds', 'aiGlobalSettings'],
+        // 自定义模板、AI 全局设置和提示词预设：localStorage（持久保存）
+        pick: ['customKeywordTemplates', 'deletedPresetTemplateIds', 'aiGlobalSettings', 'customPromptPresets', 'aiPromptSettings'],
         storage: localStorage,
       },
     ],

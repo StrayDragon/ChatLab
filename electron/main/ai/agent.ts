@@ -111,10 +111,23 @@ export interface AgentResult {
   toolRounds: number
 }
 
+// ==================== 提示词配置类型 ====================
+
 /**
- * 获取系统提示词
+ * 用户自定义提示词配置
  */
-function getSystemPrompt(): string {
+export interface PromptConfig {
+  /** 角色定义（可编辑区） */
+  roleDefinition: string
+  /** 回答要求（可编辑区） */
+  responseRules: string
+}
+
+/**
+ * 获取系统锁定部分的提示词（工具说明、时间处理等）
+ * @param chatType 聊天类型 ('group' | 'private')
+ */
+function getLockedPromptSection(chatType: 'group' | 'private'): string {
   const now = new Date()
   const currentDate = now.toLocaleDateString('zh-CN', {
     year: 'numeric',
@@ -123,37 +136,93 @@ function getSystemPrompt(): string {
     weekday: 'long',
   })
 
-  return `你是一个群聊记录分析助手。当前日期是 ${currentDate}。
+  const isPrivate = chatType === 'private'
+  const chatTypeDesc = isPrivate ? '私聊记录' : '群聊记录'
 
-你可以使用以下工具来获取群聊数据：
+  // 成员说明（私聊只有2人）
+  const memberNote = isPrivate
+    ? `成员查询策略：
+- 私聊只有两个人，可以直接获取成员列表
+- 当用户提到"对方"、"他/她"时，通过 get_group_members 获取另一方信息
+`
+    : `成员查询策略：
+- 当用户提到特定群成员（如"张三说过什么"、"小明的发言"等）时，应先调用 get_group_members 获取成员列表
+- 群成员有三种名称：accountName（QQ原始昵称）、groupNickname（群昵称）、aliases（用户自定义别名）
+- 通过 get_group_members 的 search 参数可以模糊搜索这三种名称
+- 找到成员后，使用其 id 字段作为 search_messages 的 sender_id 参数来获取该成员的发言
+`
+
+  return `当前日期是 ${currentDate}。
+
+你可以使用以下工具来获取${chatTypeDesc}数据：
 
 1. search_messages - 根据关键词搜索聊天记录，可指定 year/month 筛选时间段，也可指定 sender_id 筛选特定成员的发言
 2. get_recent_messages - 获取指定时间段的聊天消息，可指定 year 和 month
 3. get_member_stats - 获取成员活跃度统计
 4. get_time_stats - 获取时间分布统计
-5. get_group_members - 获取群成员列表，包括 id、QQ号、账号名称、群昵称、别名和消息统计
+5. get_group_members - 获取成员列表，包括 id、QQ号、账号名称、昵称、别名和消息统计
 6. get_member_name_history - 获取成员的昵称变更历史，需要先通过 get_group_members 获取成员 ID
 7. get_conversation_between - 获取两个成员之间的对话记录，需要先通过 get_group_members 获取两人的成员 ID
 
-成员查询策略：
-- 当用户提到特定群成员（如"张三说过什么"、"小明的发言"等）时，应先调用 get_group_members 获取成员列表
-- 群成员有三种名称：accountName（QQ原始昵称）、groupNickname（群昵称）、aliases（用户自定义别名）
-- 通过 get_group_members 的 search 参数可以模糊搜索这三种名称
-- 找到成员后，使用其 id 字段作为 search_messages 的 sender_id 参数来获取该成员的发言
-
+${memberNote}
 时间处理要求：
 - 如果用户提到"X月"但没有指定年份，默认使用当前年份（${now.getFullYear()}年）
 - 如果当前月份还没到用户提到的月份，则使用去年
 - 例如：现在是${now.getFullYear()}年${now.getMonth() + 1}月，用户问"10月的聊天"应该查询${now.getMonth() + 1 >= 10 ? now.getFullYear() : now.getFullYear() - 1}年10月
 
-根据用户的问题，选择合适的工具获取数据，然后基于数据给出回答。
+根据用户的问题，选择合适的工具获取数据，然后基于数据给出回答。`
+}
 
-回答要求：
-1. 基于工具返回的数据回答，不要编造信息
+/**
+ * 获取默认的角色定义
+ */
+function getDefaultRoleDefinition(chatType: 'group' | 'private'): string {
+  if (chatType === 'private') {
+    return `你是一个专业的私聊记录分析助手。
+你的任务是帮助用户理解和分析他们的私聊记录数据。
+
+注意：这是一个私聊对话，只有两个人参与。你的分析应该关注：
+- 两人之间的对话互动
+- 谁更主动、谁回复更多
+- 对话的主题和内容变化
+- 不要使用"群"这个词，使用"对话"或"聊天"`
+  }
+
+  return `你是一个专业的群聊记录分析助手。
+你的任务是帮助用户理解和分析他们的群聊记录数据。`
+}
+
+/**
+ * 获取默认的回答要求
+ */
+function getDefaultResponseRules(): string {
+  return `1. 基于工具返回的数据回答，不要编造信息
 2. 如果数据不足以回答问题，请说明
 3. 回答要简洁明了，使用 Markdown 格式
 4. 可以引用具体的发言作为证据
 5. 对于统计数据，可以适当总结趋势和特点`
+}
+
+/**
+ * 构建完整的系统提示词
+ * @param chatType 聊天类型 ('group' | 'private')
+ * @param promptConfig 用户自定义提示词配置（可选）
+ */
+function buildSystemPrompt(chatType: 'group' | 'private' = 'group', promptConfig?: PromptConfig): string {
+  // 使用用户配置或默认配置
+  const roleDefinition = promptConfig?.roleDefinition || getDefaultRoleDefinition(chatType)
+  const responseRules = promptConfig?.responseRules || getDefaultResponseRules()
+
+  // 获取锁定的系统部分
+  const lockedSection = getLockedPromptSection(chatType)
+
+  // 组合完整提示词
+  return `${roleDefinition}
+
+${lockedSection}
+
+回答要求：
+${responseRules}`
 }
 
 /**
@@ -167,10 +236,22 @@ export class Agent {
   private toolsUsed: string[] = []
   private toolRounds: number = 0
   private abortSignal?: AbortSignal
+  private historyMessages: ChatMessage[] = []
+  private chatType: 'group' | 'private' = 'group'
+  private promptConfig?: PromptConfig
 
-  constructor(context: ToolContext, config: AgentConfig = {}) {
+  constructor(
+    context: ToolContext,
+    config: AgentConfig = {},
+    historyMessages: ChatMessage[] = [],
+    chatType: 'group' | 'private' = 'group',
+    promptConfig?: PromptConfig
+  ) {
     this.context = context
     this.abortSignal = config.abortSignal
+    this.historyMessages = historyMessages
+    this.chatType = chatType
+    this.promptConfig = promptConfig
     this.config = {
       maxToolRounds: config.maxToolRounds ?? 5,
       llmOptions: config.llmOptions ?? { temperature: 0.7, maxTokens: 2048 },
@@ -189,7 +270,10 @@ export class Agent {
    * @param userMessage 用户消息
    */
   async execute(userMessage: string): Promise<AgentResult> {
-    aiLogger.info('Agent', '开始执行', { userMessage: userMessage.slice(0, 100) })
+    aiLogger.info('Agent', '开始执行', {
+      userMessage: userMessage.slice(0, 100),
+      historyLength: this.historyMessages.length,
+    })
 
     // 检查是否已中止
     if (this.isAborted()) {
@@ -197,9 +281,10 @@ export class Agent {
       return { content: '', toolsUsed: [], toolRounds: 0 }
     }
 
-    // 初始化消息
+    // 初始化消息（包含历史记录）
     this.messages = [
-      { role: 'system', content: getSystemPrompt() },
+      { role: 'system', content: buildSystemPrompt(this.chatType, this.promptConfig) },
+      ...this.historyMessages, // 插入历史对话
       { role: 'user', content: userMessage },
     ]
     this.toolsUsed = []
@@ -307,7 +392,10 @@ export class Agent {
    * @param onChunk 流式回调
    */
   async executeStream(userMessage: string, onChunk: (chunk: AgentStreamChunk) => void): Promise<AgentResult> {
-    aiLogger.info('Agent', '开始流式执行', { userMessage: userMessage.slice(0, 100) })
+    aiLogger.info('Agent', '开始流式执行', {
+      userMessage: userMessage.slice(0, 100),
+      historyLength: this.historyMessages.length,
+    })
 
     // 检查是否已中止
     if (this.isAborted()) {
@@ -316,9 +404,10 @@ export class Agent {
       return { content: '', toolsUsed: [], toolRounds: 0 }
     }
 
-    // 初始化消息
+    // 初始化消息（包含历史记录）
     this.messages = [
-      { role: 'system', content: getSystemPrompt() },
+      { role: 'system', content: buildSystemPrompt(this.chatType, this.promptConfig) },
+      ...this.historyMessages, // 插入历史对话
       { role: 'user', content: userMessage },
     ]
     this.toolsUsed = []
@@ -579,8 +668,14 @@ export class Agent {
 /**
  * 创建 Agent 并执行对话（便捷函数）
  */
-export async function runAgent(userMessage: string, context: ToolContext, config?: AgentConfig): Promise<AgentResult> {
-  const agent = new Agent(context, config)
+export async function runAgent(
+  userMessage: string,
+  context: ToolContext,
+  config?: AgentConfig,
+  historyMessages?: ChatMessage[],
+  chatType?: 'group' | 'private'
+): Promise<AgentResult> {
+  const agent = new Agent(context, config, historyMessages, chatType)
   return agent.execute(userMessage)
 }
 
@@ -591,8 +686,10 @@ export async function runAgentStream(
   userMessage: string,
   context: ToolContext,
   onChunk: (chunk: AgentStreamChunk) => void,
-  config?: AgentConfig
+  config?: AgentConfig,
+  historyMessages?: ChatMessage[],
+  chatType?: 'group' | 'private'
 ): Promise<AgentResult> {
-  const agent = new Agent(context, config)
+  const agent = new Agent(context, config, historyMessages, chatType)
   return agent.executeStream(userMessage, onChunk)
 }

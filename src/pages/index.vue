@@ -47,6 +47,15 @@ const features = [
 
 const router = useRouter()
 
+// 根据会话类型导航到对应页面
+async function navigateToSession(sessionId: string) {
+  const session = await window.chatApi.getSession(sessionId)
+  if (session) {
+    const routeName = session.type === 'private' ? 'private-chat' : 'group-chat'
+    router.push({ name: routeName, params: { id: sessionId } })
+  }
+}
+
 // 处理文件选择（点击选择）
 async function handleClickImport() {
   importError.value = null
@@ -54,7 +63,7 @@ async function handleClickImport() {
   if (!result.success && result.error && result.error !== '未选择文件') {
     importError.value = result.error
   } else if (result.success && chatStore.currentSessionId) {
-    router.push({ name: 'group-chat', params: { id: chatStore.currentSessionId } })
+    await navigateToSession(chatStore.currentSessionId)
   }
 }
 
@@ -70,7 +79,7 @@ async function handleFileDrop({ paths }: { files: File[]; paths: string[] }) {
   if (!result.success && result.error) {
     importError.value = result.error
   } else if (result.success && chatStore.currentSessionId) {
-    router.push({ name: 'group-chat', params: { id: chatStore.currentSessionId } })
+    await navigateToSession(chatStore.currentSessionId)
   }
 }
 

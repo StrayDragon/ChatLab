@@ -8,6 +8,7 @@ defineProps<{
   sessionId: string
   sessionName: string
   timeFilter?: { startTs: number; endTs: number }
+  chatType?: 'group' | 'private'
 }>()
 
 // 子 Tab 配置
@@ -50,6 +51,7 @@ defineExpose({
           :session-id="sessionId"
           :session-name="sessionName"
           :time-filter="timeFilter"
+          :chat-type="chatType"
         />
 
         <!-- 实验室 - 暂未实现 -->

@@ -3,7 +3,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import * as aiConversations from '../ai/conversations'
 import * as llm from '../ai/llm'
 import { aiLogger } from '../ai/logger'
-import { Agent, type AgentStreamChunk } from '../ai/agent'
+import { Agent, type AgentStreamChunk, type PromptConfig } from '../ai/agent'
 import type { ToolContext } from '../ai/tools/types'
 import type { IpcContext } from './types'
 
@@ -424,19 +424,48 @@ export function registerAIHandlers({ win }: IpcContext): void {
   /**
    * 执行 Agent 对话（流式）
    * Agent 会自动调用工具并返回最终结果
+   * @param historyMessages 对话历史（可选，用于上下文关联）
+   * @param chatType 聊天类型（'group' | 'private'）
+   * @param promptConfig 用户自定义提示词配置（可选）
    */
-  ipcMain.handle('agent:runStream', async (_, requestId: string, userMessage: string, context: ToolContext) => {
-    aiLogger.info('IPC', `收到 Agent 流式请求: ${requestId}`, {
-      userMessage: userMessage.slice(0, 100),
-      sessionId: context.sessionId,
-    })
+  ipcMain.handle(
+    'agent:runStream',
+    async (
+      _,
+      requestId: string,
+      userMessage: string,
+      context: ToolContext,
+      historyMessages?: Array<{ role: 'user' | 'assistant'; content: string }>,
+      chatType?: 'group' | 'private',
+      promptConfig?: PromptConfig
+    ) => {
+      aiLogger.info('IPC', `收到 Agent 流式请求: ${requestId}`, {
+        userMessage: userMessage.slice(0, 100),
+        sessionId: context.sessionId,
+        historyLength: historyMessages?.length ?? 0,
+        chatType: chatType ?? 'group',
+        hasPromptConfig: !!promptConfig,
+      })
 
-    try {
-      // 创建 AbortController 并存储
-      const abortController = new AbortController()
-      activeAgentRequests.set(requestId, abortController)
+      try {
+        // 创建 AbortController 并存储
+        const abortController = new AbortController()
+        activeAgentRequests.set(requestId, abortController)
 
-      const agent = new Agent(context, { abortSignal: abortController.signal })
+        // 转换历史消息格式
+        const formattedHistory =
+          historyMessages?.map((msg) => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+          })) ?? []
+
+        const agent = new Agent(
+          context,
+          { abortSignal: abortController.signal },
+          formattedHistory,
+          chatType ?? 'group',
+          promptConfig
+        )
 
       // 异步执行，通过事件发送流式数据
       ;(async () => {

@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import AIConfigTab from './settings/AIConfigTab.vue'
 import AIChatConfigTab from './settings/AIChatConfigTab.vue'
+import AIPromptConfigTab from './settings/AIPromptConfigTab.vue'
 import CacheManageTab from './settings/CacheManageTab.vue'
 
 // Props
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 const tabs = [
   { id: 'settings', label: '基础设置', icon: 'i-heroicons-cog-6-tooth' },
   { id: 'ai-model', label: 'AI 模型', icon: 'i-heroicons-sparkles' },
+  { id: 'ai-prompt', label: 'AI 提示词', icon: 'i-heroicons-document-text' },
   { id: 'ai-chat', label: 'AI 聊天', icon: 'i-heroicons-chat-bubble-left-right' },
   { id: 'help', label: '帮助', icon: 'i-heroicons-question-mark-circle' },
 ]
@@ -95,6 +97,11 @@ watch(
           <!-- AI 模型配置 Tab -->
           <div v-show="activeTab === 'ai-model'" class="pr-1">
             <AIConfigTab ref="aiConfigRef" @config-changed="handleAIConfigChanged" />
+          </div>
+
+          <!-- AI 提示词配置 Tab -->
+          <div v-show="activeTab === 'ai-prompt'" class="pr-1">
+            <AIPromptConfigTab @config-changed="handleAIConfigChanged" />
           </div>
 
           <!-- AI 聊天配置 Tab -->

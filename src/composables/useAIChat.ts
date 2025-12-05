@@ -3,7 +3,9 @@
  * 封装 AI 对话的核心逻辑（基于 Agent + Function Calling）
  */
 
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useChatStore } from '@/stores/chat'
+import { storeToRefs } from 'pinia'
 
 // 工具调用记录
 export interface ToolCallRecord {
@@ -56,7 +58,24 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   get_time_stats: '获取时间分布',
 }
 
-export function useAIChat(sessionId: string, timeFilter?: { startTs: number; endTs: number }) {
+export function useAIChat(
+  sessionId: string,
+  timeFilter?: { startTs: number; endTs: number },
+  chatType: 'group' | 'private' = 'group'
+) {
+  // 获取 chat store 中的提示词配置
+  const chatStore = useChatStore()
+  const { activeGroupPreset, activePrivatePreset } = storeToRefs(chatStore)
+
+  // 获取当前聊天类型对应的提示词配置
+  const currentPromptConfig = computed(() => {
+    const preset = chatType === 'group' ? activeGroupPreset.value : activePrivatePreset.value
+    return {
+      roleDefinition: preset.roleDefinition,
+      responseRules: preset.responseRules,
+    }
+  })
+
   // 状态
   const messages = ref<ChatMessage[]>([])
   const sourceMessages = ref<SourceMessage[]>([])
@@ -151,10 +170,23 @@ export function useAIChat(sessionId: string, timeFilter?: { startTs: number; end
         timeFilter: timeFilter ? { startTs: timeFilter.startTs, endTs: timeFilter.endTs } : undefined,
       }
 
-      console.log('[AI] 调用 Agent API...', context)
+      // 收集历史消息（排除当前用户消息和 AI 占位消息）
+      const historyMessages = messages.value
+        .slice(0, -2) // 排除刚添加的用户消息和 AI 占位消息
+        .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+        .filter((msg) => msg.content && msg.content.trim() !== '') // 排除空消息
+        .map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        }))
 
-      // 获取 requestId 和 promise
-      const { requestId: agentReqId, promise: agentPromise } = window.agentApi.runStream(content, context, (chunk) => {
+      console.log('[AI] 调用 Agent API...', context, 'historyLength:', historyMessages.length, 'chatType:', chatType, 'promptConfig:', currentPromptConfig.value)
+
+      // 获取 requestId 和 promise（传递历史消息、聊天类型和提示词配置）
+      const { requestId: agentReqId, promise: agentPromise } = window.agentApi.runStream(
+        content,
+        context,
+        (chunk) => {
         // 如果已中止或请求 ID 不匹配，忽略后续 chunks
         if (isAborted || thisRequestId !== currentRequestId) {
           console.log('[AI] 已中止或请求已过期，忽略 chunk', {
@@ -256,7 +288,11 @@ export function useAIChat(sessionId: string, timeFilter?: { startTs: number; end
             }
             break
         }
-      })
+        },
+        historyMessages,
+        chatType,
+        currentPromptConfig.value
+      )
 
       // 存储 Agent 请求 ID（用于中止）
       currentAgentRequestId = agentReqId

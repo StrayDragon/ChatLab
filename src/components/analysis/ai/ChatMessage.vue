@@ -43,7 +43,7 @@ const renderedContent = computed(() => {
     </div>
     <div
       v-else
-      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-600"
+      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-pink-600"
     >
       <UIcon name="i-heroicons-sparkles" class="h-4 w-4 text-white" />
     </div>
@@ -66,7 +66,7 @@ const renderedContent = computed(() => {
         />
 
         <!-- 流式输出光标 -->
-        <span v-if="isStreaming" class="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-violet-500" />
+        <span v-if="isStreaming" class="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-pink-500" />
       </div>
 
       <!-- 时间戳 -->

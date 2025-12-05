@@ -148,12 +148,13 @@ onMounted(() => {
       <div
         v-for="config in configs"
         :key="config.id"
-        class="group flex items-center justify-between rounded-lg border p-3 transition-colors"
+        class="group flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
         :class="[
           config.id === activeConfigId
             ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20'
             : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800',
         ]"
+        @click="setActive(config.id)"
       >
         <!-- 配置信息 -->
         <div class="flex items-center gap-3">
@@ -188,16 +189,7 @@ onMounted(() => {
         </div>
 
         <!-- 操作按钮 -->
-        <div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <UButton
-            v-if="config.id !== activeConfigId"
-            size="xs"
-            color="primary"
-            variant="ghost"
-            @click="setActive(config.id)"
-          >
-            激活
-          </UButton>
+        <div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100" @click.stop>
           <UButton size="xs" color="gray" variant="ghost" @click="openEditModal(config)">编辑</UButton>
           <UButton size="xs" color="error" variant="ghost" @click="deleteConfig(config.id)">删除</UButton>
         </div>

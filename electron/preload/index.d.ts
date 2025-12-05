@@ -269,11 +269,20 @@ interface ToolContext {
   timeFilter?: { startTs: number; endTs: number }
 }
 
+// 用户自定义提示词配置
+interface PromptConfig {
+  roleDefinition: string
+  responseRules: string
+}
+
 interface AgentApi {
   runStream: (
     userMessage: string,
     context: ToolContext,
-    onChunk?: (chunk: AgentStreamChunk) => void
+    onChunk?: (chunk: AgentStreamChunk) => void,
+    historyMessages?: Array<{ role: 'user' | 'assistant'; content: string }>,
+    chatType?: 'group' | 'private',
+    promptConfig?: PromptConfig
   ) => { requestId: string; promise: Promise<{ success: boolean; result?: AgentResult; error?: string }> }
   abort: (requestId: string) => Promise<{ success: boolean; error?: string }>
 }
@@ -336,6 +345,7 @@ export {
   AgentStreamChunk,
   AgentResult,
   ToolContext,
+  PromptConfig,
   CacheDirectoryInfo,
   CacheInfo,
 }
