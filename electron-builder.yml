@@ -6,7 +6,7 @@ productName: ChatLab
 publish:
   provider: github
   owner: hellodigua
-  repo: ChatLab-source
+  repo: ChatLab
 # 构建资源所在的目录
 directories:
   buildResources: build
