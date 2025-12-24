@@ -242,9 +242,7 @@ function getSessionAvatarText(session: AnalysisSession): string {
                       ? isPrivateChat(session)
                         ? 'bg-pink-600 text-white dark:bg-pink-500 dark:text-white'
                         : 'bg-primary-600 text-white dark:bg-primary-500 dark:text-white'
-                      : isPrivateChat(session)
-                        ? 'bg-gray-400 text-white dark:bg-pink-600 dark:text-white'
-                        : 'bg-gray-400 text-white dark:bg-gray-600 dark:text-white',
+                      : 'bg-gray-400 text-white dark:bg-gray-600 dark:text-white',
                     isCollapsed ? '' : 'mr-3',
                   ]"
                 >

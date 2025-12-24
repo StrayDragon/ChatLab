@@ -18,12 +18,7 @@ defineProps<{
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-3">
         <!-- 头像图片（优先显示） -->
-        <img
-          v-if="avatar"
-          :src="avatar"
-          :alt="title"
-          class="h-10 w-10 rounded-xl object-cover"
-        />
+        <img v-if="avatar" :src="avatar" :alt="title" class="h-10 w-10 rounded-xl object-cover" />
         <!-- 可选图标（fallback） -->
         <div
           v-else-if="icon"
