@@ -1,11 +1,84 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { storeToRefs } from 'pinia'
+import { useToast } from '@nuxt/ui/runtime/composables/useToast.js'
 import MarkdownIt from 'markdown-it'
+import dayjs from 'dayjs'
 import type { SQLResult } from './types'
 import { COLUMN_LABELS } from './types'
+import { usePromptStore } from '@/stores/prompt'
+import { useLayoutStore } from '@/stores/layout'
+import { exportSQLResult, type SQLExportFormat } from '@/utils/sqlExport'
 
 const { t, locale } = useI18n()
+const toast = useToast()
+const promptStore = usePromptStore()
+const layoutStore = useLayoutStore()
+const { aiGlobalSettings } = storeToRefs(promptStore)
+
+// 时间戳列名匹配模式
+const TIMESTAMP_COLUMN_PATTERNS = [
+  /^ts$/i,
+  /^timestamp$/i,
+  /^time$/i,
+  /_at$/i, // created_at, updated_at 等
+  /_ts$/i,
+  /_time$/i,
+  /^date$/i,
+]
+
+/**
+ * 判断列名是否可能是时间戳
+ */
+function isTimestampColumn(columnName: string): boolean {
+  return TIMESTAMP_COLUMN_PATTERNS.some((pattern) => pattern.test(columnName))
+}
+
+/**
+ * 判断值是否是合理的时间戳（2000年~2100年）
+ */
+function isValidTimestamp(value: unknown): boolean {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return false
+
+  // 秒级时间戳范围：946684800 (2000-01-01) ~ 4102444800 (2100-01-01)
+  // 毫秒级时间戳范围：946684800000 ~ 4102444800000
+  const MIN_SECONDS = 946684800
+  const MAX_SECONDS = 4102444800
+  const MIN_MILLIS = MIN_SECONDS * 1000
+  const MAX_MILLIS = MAX_SECONDS * 1000
+
+  return (value >= MIN_SECONDS && value <= MAX_SECONDS) || (value >= MIN_MILLIS && value <= MAX_MILLIS)
+}
+
+/**
+ * 将时间戳转换为可读时间
+ */
+function formatTimestamp(value: number): string {
+  // 判断是毫秒级还是秒级
+  const isMillis = value > 10000000000
+  const ts = isMillis ? value : value * 1000
+  return dayjs(ts).format('YYYY-MM-DD HH:mm:ss')
+}
+
+// 消息 ID 列名匹配模式
+const MESSAGE_ID_COLUMN_PATTERNS = [/^id$/i, /^message_id$/i, /^msg_id$/i, /^msgid$/i]
+
+/**
+ * 检测结果中是否有消息 ID 列，返回列索引
+ */
+function getMessageIdColumnIndex(columns: string[]): number {
+  return columns.findIndex((col) => MESSAGE_ID_COLUMN_PATTERNS.some((pattern) => pattern.test(col)))
+}
+
+/**
+ * 查看消息上下文
+ */
+function viewMessageContext(messageId: number) {
+  layoutStore.openChatRecordDrawer({
+    scrollToMessageId: messageId,
+  })
+}
 
 // 创建 markdown-it 实例
 const md = new MarkdownIt({
@@ -23,14 +96,23 @@ const props = defineProps<{
   prompt?: string // 用户提示词（AI 生成时）
 }>()
 
-// Emits
-const emit = defineEmits<{
-  copyCSV: []
-}>()
-
 // 表格排序
 const sortColumn = ref<string | null>(null)
 const sortDirection = ref<'asc' | 'desc'>('asc')
+
+// 分页相关
+const currentPage = ref(1)
+const pageSize = ref(100) // 每页显示行数
+const pageSizeOptions = [50, 100, 200, 500]
+
+// 时间戳转可读时间（从 localStorage 读取，默认开启）
+const showReadableTime = ref(localStorage.getItem('sql-lab-readable-time') !== 'false')
+
+// 监听并持久化时间戳显示设置
+function toggleReadableTime() {
+  showReadableTime.value = !showReadableTime.value
+  localStorage.setItem('sql-lab-readable-time', String(showReadableTime.value))
+}
 
 // AI 总结相关状态
 const showSummaryModal = ref(false)
@@ -38,6 +120,9 @@ const isSummarizing = ref(false)
 const summaryContent = ref('')
 const summaryError = ref<string | null>(null)
 const streamingContent = ref('')
+
+// 导出相关状态
+const isExporting = ref(false)
 
 // 获取列的标签（尝试匹配所有表的列）
 function getColumnLabelLocal(columnName: string): string | null {
@@ -57,8 +142,8 @@ function getColumnLabelLocal(columnName: string): string | null {
   return null
 }
 
-// 排序后的行数据
-const sortedRows = computed(() => {
+// 排序后的所有行数据
+const allSortedRows = computed(() => {
   if (!props.result || !sortColumn.value) {
     return props.result?.rows || []
   }
@@ -82,6 +167,28 @@ const sortedRows = computed(() => {
   })
 })
 
+// 总页数
+const totalPages = computed(() => {
+  if (!props.result) return 0
+  return Math.ceil(allSortedRows.value.length / pageSize.value)
+})
+
+// 当前页的数据
+const sortedRows = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return allSortedRows.value.slice(start, end)
+})
+
+// 消息 ID 列索引（-1 表示没有）
+const messageIdColumnIndex = computed(() => {
+  if (!props.result) return -1
+  return getMessageIdColumnIndex(props.result.columns)
+})
+
+// 是否显示查看消息按钮
+const showViewMessageButton = computed(() => messageIdColumnIndex.value !== -1)
+
 // 处理列排序
 function handleSort(column: string) {
   if (sortColumn.value === column) {
@@ -90,38 +197,89 @@ function handleSort(column: string) {
     sortColumn.value = column
     sortDirection.value = 'asc'
   }
+  // 排序后回到第一页
+  currentPage.value = 1
+}
+
+// 处理每页显示数量变化
+function handlePageSizeChange(size: number) {
+  pageSize.value = size
+  currentPage.value = 1
 }
 
 // 格式化单元格值
-function formatCellValue(value: any): string {
+function formatCellValue(value: any, columnName?: string): string {
   if (value === null) return 'NULL'
   if (typeof value === 'object') return JSON.stringify(value)
+
+  // 时间戳转换（仅在开启且是时间戳列时）
+  if (showReadableTime.value && columnName && isTimestampColumn(columnName) && isValidTimestamp(value)) {
+    return formatTimestamp(value)
+  }
+
   return String(value)
 }
 
-// 复制结果到剪贴板（CSV 格式）
-async function copyAsCSV() {
-  if (!props.result) return
+// 导出结果到文件（导出所有数据，不受分页限制）
+async function exportResult() {
+  if (!props.result || isExporting.value) return
 
-  const header = props.result.columns.join(',')
-  const rows = props.result.rows.map((row) =>
-    row.map((cell) => (cell === null ? '' : `"${String(cell).replace(/"/g, '""')}"`)).join(',')
-  )
-
-  const csv = [header, ...rows].join('\n')
-
+  isExporting.value = true
   try {
-    await navigator.clipboard.writeText(csv)
-    emit('copyCSV')
+    const format = (aiGlobalSettings.value.sqlExportFormat ?? 'csv') as SQLExportFormat
+    const result = await exportSQLResult(
+      {
+        columns: props.result.columns,
+        rows: props.result.rows, // 导出所有数据
+      },
+      format
+    )
+
+    if (result.success && result.filePath) {
+      const filename = result.filePath.split('/').pop() || result.filePath
+      toast.add({
+        title: t('exportSuccess'),
+        description: filename,
+        icon: 'i-heroicons-check-circle',
+        color: 'primary',
+        duration: 3000,
+        actions: [
+          {
+            label: t('openFolder'),
+            onClick: () => {
+              window.cacheApi.showInFolder(result.filePath!)
+            },
+          },
+        ],
+      })
+    } else {
+      toast.add({
+        title: t('exportFailed'),
+        description: result.error,
+        icon: 'i-heroicons-x-circle',
+        color: 'error',
+        duration: 3000,
+      })
+    }
   } catch (err) {
-    console.error('复制失败:', err)
+    console.error('导出失败:', err)
+    toast.add({
+      title: t('exportFailed'),
+      description: String(err),
+      icon: 'i-heroicons-x-circle',
+      color: 'error',
+      duration: 3000,
+    })
+  } finally {
+    isExporting.value = false
   }
 }
 
-// 重置排序状态（供父组件调用）
+// 重置排序和分页状态（供父组件调用）
 function resetSort() {
   sortColumn.value = null
   sortDirection.value = 'asc'
+  currentPage.value = 1
 }
 
 // ==================== AI 总结功能 ====================
@@ -195,7 +353,10 @@ ${resultSummary}
 
     const result = await window.llmApi.chatStream(
       [
-        { role: 'system', content: '你是一个数据分析专家，擅长从查询结果中提取关键信息和洞察。请用简洁清晰的中文回答。' },
+        {
+          role: 'system',
+          content: '你是一个数据分析专家，擅长从查询结果中提取关键信息和洞察。请用简洁清晰的中文回答。',
+        },
         { role: 'user', content: prompt },
       ],
       { temperature: 0.3, maxTokens: 1000 },
@@ -248,10 +409,15 @@ defineExpose({ resetSort })
       class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900"
     >
       <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+        <!-- 时间戳转日期开关 -->
+        <label class="flex cursor-pointer items-center gap-1.5">
+          <UCheckbox :model-value="showReadableTime" size="xs" @update:model-value="toggleReadableTime" />
+          <span class="text-xs">{{ t('readableTime') }}</span>
+        </label>
+        <span class="text-gray-300 dark:text-gray-600">|</span>
         <span>
           <UIcon name="i-heroicons-table-cells" class="mr-1 inline h-4 w-4" />
           {{ t('rows', { count: result.rowCount }) }}
-          <span v-if="result.limited" class="text-yellow-600 dark:text-yellow-400">{{ t('truncated') }}</span>
         </span>
         <span>
           <UIcon name="i-heroicons-clock" class="mr-1 inline h-4 w-4" />
@@ -263,9 +429,9 @@ defineExpose({ resetSort })
           <UIcon name="i-heroicons-sparkles" class="mr-1 h-4 w-4" />
           {{ t('summarize') }}
         </UButton>
-        <UButton variant="ghost" size="xs" @click="copyAsCSV">
-          <UIcon name="i-heroicons-clipboard-document" class="mr-1 h-4 w-4" />
-          {{ t('copyCSV') }}
+        <UButton variant="ghost" size="xs" :loading="isExporting" @click="exportResult">
+          <UIcon name="i-heroicons-arrow-down-tray" class="mr-1 h-4 w-4" />
+          {{ t('export') }}
         </UButton>
       </div>
     </div>
@@ -284,7 +450,9 @@ defineExpose({ resetSort })
               <div class="flex items-center gap-1">
                 <div class="flex flex-col">
                   <span class="text-gray-700 dark:text-gray-300">{{ getColumnLabelLocal(column) || column }}</span>
-                  <span v-if="getColumnLabelLocal(column)" class="font-mono text-[10px] text-gray-400">{{ column }}</span>
+                  <span v-if="getColumnLabelLocal(column)" class="font-mono text-[10px] text-gray-400">
+                    {{ column }}
+                  </span>
                 </div>
                 <UIcon
                   v-if="sortColumn === column"
@@ -293,6 +461,8 @@ defineExpose({ resetSort })
                 />
               </div>
             </th>
+            <!-- 操作列（当有消息 ID 时显示） -->
+            <th v-if="showViewMessageButton" class="sticky right-0 w-12 bg-gray-100 px-2 py-2 dark:bg-gray-800"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
@@ -302,18 +472,79 @@ defineExpose({ resetSort })
               :key="cellIndex"
               class="max-w-xs truncate whitespace-nowrap px-4 py-2 font-mono text-sm text-gray-700 dark:text-gray-300"
               :class="{ 'text-gray-400 italic': cell === null }"
-              :title="formatCellValue(cell)"
+              :title="formatCellValue(cell, result.columns[cellIndex])"
             >
-              {{ formatCellValue(cell) }}
+              {{ formatCellValue(cell, result.columns[cellIndex]) }}
+            </td>
+            <!-- 查看消息按钮 -->
+            <td v-if="showViewMessageButton" class="sticky right-0 w-12 bg-white px-2 py-2 dark:bg-gray-900">
+              <UButton
+                icon="i-heroicons-chat-bubble-left-right"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                :title="t('viewChat')"
+                @click="viewMessageContext(row[messageIdColumnIndex] as number)"
+              />
             </td>
           </tr>
         </tbody>
       </table>
     </div>
 
+    <!-- 分页栏 -->
+    <div
+      v-if="result && result.rows.length > 0 && totalPages > 1"
+      class="flex shrink-0 items-center gap-4 border-t border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900"
+    >
+      <!-- 翻页按钮 -->
+      <div class="flex items-center gap-1">
+        <UButton
+          icon="i-heroicons-chevron-double-left"
+          variant="ghost"
+          size="xs"
+          :disabled="currentPage === 1"
+          @click="currentPage = 1"
+        />
+        <UButton
+          icon="i-heroicons-chevron-left"
+          variant="ghost"
+          size="xs"
+          :disabled="currentPage === 1"
+          @click="currentPage--"
+        />
+        <span class="mx-2 text-xs text-gray-600 dark:text-gray-400">{{ currentPage }} / {{ totalPages }}</span>
+        <UButton
+          icon="i-heroicons-chevron-right"
+          variant="ghost"
+          size="xs"
+          :disabled="currentPage >= totalPages"
+          @click="currentPage++"
+        />
+        <UButton
+          icon="i-heroicons-chevron-double-right"
+          variant="ghost"
+          size="xs"
+          :disabled="currentPage >= totalPages"
+          @click="currentPage = totalPages"
+        />
+      </div>
+      <!-- 每页数量选择 -->
+      <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <span>{{ t('pageSize') }}</span>
+        <USelect
+          :model-value="pageSize"
+          :items="pageSizeOptions.map((n) => ({ label: String(n), value: n }))"
+          size="xs"
+          class="w-20"
+          @update:model-value="handlePageSizeChange"
+        />
+      </div>
+    </div>
+
     <!-- 空结果 -->
     <div
-      v-else-if="result && result.rows.length === 0"
+      v-if="result && result.rows.length === 0"
       class="flex flex-1 items-center justify-center text-gray-500 dark:text-gray-400"
     >
       <div class="text-center">
@@ -323,7 +554,7 @@ defineExpose({ resetSort })
     </div>
 
     <!-- 初始状态 -->
-    <div v-else-if="!error" class="flex flex-1 items-center justify-center text-gray-500 dark:text-gray-400">
+    <div v-if="!result && !error" class="flex flex-1 items-center justify-center text-gray-500 dark:text-gray-400">
       <div class="text-center">
         <UIcon name="i-heroicons-command-line" class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" />
         <p class="mt-2 text-sm">{{ t('initialState') }}</p>
@@ -382,12 +613,18 @@ defineExpose({ resetSort })
   "zh-CN": {
     "queryError": "查询错误",
     "rows": "{count} 行",
-    "truncated": "（已截断至 1000 行）",
+    "readableTime": "时间戳转日期",
+    "viewChat": "查看聊天记录",
     "summarize": "总结一下",
-    "copyCSV": "复制 CSV",
+    "export": "导出",
+    "exportSuccess": "导出成功",
+    "exportFailed": "导出失败",
+    "openFolder": "打开目录",
+    "pageSize": "每页",
+    "pageInfo": "第 {current} / {total} 页",
     "emptyResult": "查询结果为空",
     "initialState": "输入 SQL 语句并运行查看结果",
-    "initialHint": "仅支持 SELECT 查询，结果最多返回 1000 行",
+    "initialHint": "仅支持 SELECT 查询，建议添加 LIMIT 以提升性能",
     "summaryTitle": "AI 结果总结",
     "analyzing": "AI 正在分析结果...",
     "generating": "生成中...",
@@ -399,12 +636,18 @@ defineExpose({ resetSort })
   "en-US": {
     "queryError": "Query Error",
     "rows": "{count} rows",
-    "truncated": " (truncated to 1000 rows)",
+    "readableTime": "Readable time",
+    "viewChat": "View chat history",
     "summarize": "Summarize",
-    "copyCSV": "Copy CSV",
+    "export": "Export",
+    "exportSuccess": "Export successful",
+    "exportFailed": "Export failed",
+    "openFolder": "Open folder",
+    "pageSize": "Per page",
+    "pageInfo": "Page {current} / {total}",
     "emptyResult": "Query returned no results",
     "initialState": "Enter SQL and run to see results",
-    "initialHint": "Only SELECT queries supported, max 1000 rows",
+    "initialHint": "Only SELECT queries supported, add LIMIT for better performance",
     "summaryTitle": "AI Result Summary",
     "analyzing": "AI is analyzing results...",
     "generating": "Generating...",

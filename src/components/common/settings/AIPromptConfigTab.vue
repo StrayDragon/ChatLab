@@ -45,17 +45,32 @@ const globalMaxHistoryRounds = computed({
   },
 })
 
-// 导出格式选项
+// 导出格式选项（AI 对话）
 const exportFormatTabs = computed(() => [
   { label: 'Markdown', value: 'markdown' },
   { label: t('settings.aiPrompt.exportFormat.txtLabel'), value: 'txt' },
 ])
 
-// 当前选中的导出格式
+// 当前选中的导出格式（AI 对话）
 const exportFormat = computed({
   get: () => aiGlobalSettings.value.exportFormat ?? 'markdown',
   set: (val: string) => {
     promptStore.updateAIGlobalSettings({ exportFormat: val as 'markdown' | 'txt' })
+    emit('config-changed')
+  },
+})
+
+// SQL Lab 导出格式选项
+const sqlExportFormatTabs = computed(() => [
+  { label: 'CSV', value: 'csv' },
+  { label: 'JSON', value: 'json' },
+])
+
+// 当前选中的 SQL Lab 导出格式
+const sqlExportFormat = computed({
+  get: () => aiGlobalSettings.value.sqlExportFormat ?? 'csv',
+  set: (val: string) => {
+    promptStore.updateAIGlobalSettings({ sqlExportFormat: val as 'csv' | 'json' })
     emit('config-changed')
   },
 })
@@ -152,7 +167,7 @@ function handleImportPresetAdded() {
           <UInput v-model.number="globalMaxHistoryRounds" type="number" min="1" max="50" class="w-24" />
         </div>
 
-        <!-- 导出格式 -->
+        <!-- 导出格式（AI 对话） -->
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
             <p class="text-sm font-medium text-gray-900 dark:text-white">
@@ -163,6 +178,19 @@ function handleImportPresetAdded() {
             </p>
           </div>
           <UTabs v-model="exportFormat" :items="exportFormatTabs" size="xs" />
+        </div>
+
+        <!-- SQL Lab 导出格式 -->
+        <div class="flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <p class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('settings.aiPrompt.sqlExportFormat.title') }}
+            </p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              {{ t('settings.aiPrompt.sqlExportFormat.description') }}
+            </p>
+          </div>
+          <UTabs v-model="sqlExportFormat" :items="sqlExportFormatTabs" size="xs" />
         </div>
       </div>
     </div>

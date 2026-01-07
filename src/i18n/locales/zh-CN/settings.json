@@ -143,6 +143,10 @@
       "description": "导出 AI 对话时使用的文件格式",
       "txtLabel": "TXT"
     },
+    "sqlExportFormat": {
+      "title": "SQL Lab 导出格式",
+      "description": "导出 SQL 查询结果时使用的文件格式"
+    },
     "presets": {
       "title": "系统提示词",
       "import": "导入预设"

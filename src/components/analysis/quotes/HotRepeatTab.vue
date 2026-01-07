@@ -84,7 +84,9 @@ watch(
           >
             {{ index + 1 }}
           </span>
-          <span class="shrink-0 text-lg font-bold text-pink-600">{{ t('people', { count: item.maxChainLength }) }}</span>
+          <span class="shrink-0 text-lg font-bold text-pink-600">
+            {{ t('people', { count: item.maxChainLength }) }}
+          </span>
           <div class="flex flex-1 items-center gap-1 overflow-hidden text-sm">
             <span class="shrink-0 font-medium text-gray-900 dark:text-white whitespace-nowrap">
               {{ item.originatorName }}{{ t('colon') }}

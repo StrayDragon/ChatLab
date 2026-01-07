@@ -48,6 +48,7 @@ export const usePromptStore = defineStore(
       maxMessagesPerRequest: 500,
       maxHistoryRounds: 5, // AI上下文会话轮数限制
       exportFormat: 'markdown' as 'markdown' | 'txt', // 对话导出格式
+      sqlExportFormat: 'csv' as 'csv' | 'json', // SQL Lab 导出格式
     })
     const customKeywordTemplates = ref<KeywordTemplate[]>([])
     const deletedPresetTemplateIds = ref<string[]>([])
@@ -98,7 +99,12 @@ export const usePromptStore = defineStore(
      * 更新 AI 全局设置
      */
     function updateAIGlobalSettings(
-      settings: Partial<{ maxMessagesPerRequest: number; maxHistoryRounds: number; exportFormat: 'markdown' | 'txt' }>
+      settings: Partial<{
+        maxMessagesPerRequest: number
+        maxHistoryRounds: number
+        exportFormat: 'markdown' | 'txt'
+        sqlExportFormat: 'csv' | 'json'
+      }>
     ) {
       aiGlobalSettings.value = { ...aiGlobalSettings.value, ...settings }
       notifyAIConfigChanged()

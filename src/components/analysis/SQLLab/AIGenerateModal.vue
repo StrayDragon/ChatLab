@@ -72,6 +72,8 @@ ${schemaDesc}
       OR m.aliases LIKE '%人名%'
    \`\`\`
 5. 显示成员名称时，使用 COALESCE(m.group_nickname, m.account_name, m.platform_id) 来获取最佳显示名
+6. **查询具体消息时包含消息 ID**：当用户需要查看具体的聊天记录时，SELECT 应包含 msg.id 作为第一个字段，这样用户可以点击查看完整上下文。注意是 msg.id（消息 ID），不是 m.id（成员 ID）。
+7. **统计查询不需要消息 ID**：当用户需要统计分析（如"统计发言数量"、"分析活跃度"）时，不需要返回 msg.id
 
 ## 用户需求
 

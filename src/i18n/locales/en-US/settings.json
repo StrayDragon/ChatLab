@@ -143,6 +143,10 @@
       "description": "File format for exporting AI conversations",
       "txtLabel": "TXT"
     },
+    "sqlExportFormat": {
+      "title": "SQL Lab Export Format",
+      "description": "File format for exporting SQL query results"
+    },
     "presets": {
       "title": "System Prompts",
       "import": "Import Presets"
