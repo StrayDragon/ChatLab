@@ -153,7 +153,7 @@ function getProgressDetail(): string {
     >
       <template #default="{ isDragOver }">
         <div
-          class="group relative flex w-full cursor-pointer flex-col items-center justify-center rounded-3xl border border-gray-200/50 bg-white/40 px-8 py-10 backdrop-blur-md transition-all duration-300 hover:border-pink-500/30 hover:bg-white/60 hover:shadow-2xl hover:shadow-pink-500/10 focus:outline-none focus:ring-4 focus:ring-pink-500/20 sm:px-12 sm:py-14 dark:border-white/10 dark:bg-white/5 dark:hover:border-pink-500/30 dark:hover:bg-white/10"
+          class="group relative flex w-full cursor-pointer flex-col items-center justify-center rounded-3xl border border-gray-200/50 bg-gray-100/50 px-8 py-10 backdrop-blur-md transition-all duration-300 hover:border-pink-500/30 hover:bg-gray-100/80 hover:shadow-2xl hover:shadow-pink-500/10 focus:outline-none focus:ring-4 focus:ring-pink-500/20 sm:px-12 sm:py-14 dark:border-white/10 dark:bg-gray-800/40 dark:hover:border-pink-500/30 dark:hover:bg-gray-800/60"
           :class="{
             'border-pink-500/50 bg-pink-50/50 dark:border-pink-400/50 dark:bg-pink-500/10': isDragOver && !isImporting,
             'cursor-not-allowed opacity-70': isImporting,
