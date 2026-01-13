@@ -18,6 +18,10 @@
   "import": {
     "dropHint": "松开鼠标导入文件",
     "clickHint": "点击选择或拖拽聊天记录导入",
+    "multipleHint": "支持同时选择或拖拽多个文件",
+    "selectFiles": "选择聊天记录文件",
+    "chatRecords": "聊天记录",
+    "allFiles": "所有文件",
     "progress": {
       "detecting": "正在检测格式...",
       "reading": "正在读取文件...",
@@ -36,6 +40,17 @@
       "import_failed": "导入失败",
       "unrecognized_format": "无法识别的文件格式",
       "no_messages": "未解析到任何消息，请检查文件格式是否正确"
+    },
+    "batch": {
+      "importing": "正在批量导入",
+      "progressCount": "第 {current} 个 / 共 {total} 个",
+      "cancel": "取消导入",
+      "waiting": "等待中",
+      "skipped": "已跳过",
+      "success": "导入成功",
+      "completed": "批量导入完成",
+      "summary": "成功 {success} 个，失败 {failed} 个，跳过 {cancelled} 个",
+      "view": "查看"
     }
   },
   "migration": {

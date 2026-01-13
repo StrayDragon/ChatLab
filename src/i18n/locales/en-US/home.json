@@ -16,8 +16,12 @@
     }
   },
   "import": {
-    "dropHint": "Drop to import file",
+    "dropHint": "Drop to import files",
     "clickHint": "Click to select or drag chat records to import",
+    "multipleHint": "Multiple files can be selected or dragged at once",
+    "selectFiles": "Select chat record files",
+    "chatRecords": "Chat Records",
+    "allFiles": "All Files",
     "progress": {
       "detecting": "Detecting format...",
       "reading": "Reading file...",
@@ -36,6 +40,17 @@
       "import_failed": "Import failed",
       "unrecognized_format": "Unrecognized file format",
       "no_messages": "No messages parsed. Please check if the file format is correct."
+    },
+    "batch": {
+      "importing": "Batch importing",
+      "progressCount": "{current} of {total}",
+      "cancel": "Cancel import",
+      "waiting": "Waiting",
+      "skipped": "Skipped",
+      "success": "Import successful",
+      "completed": "Batch import completed",
+      "summary": "{success} succeeded, {failed} failed, {cancelled} skipped",
+      "view": "View"
     }
   },
   "migration": {

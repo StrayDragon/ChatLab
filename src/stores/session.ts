@@ -19,6 +19,29 @@ export interface MigrationCheckResult {
   pendingMigrations: MigrationInfo[]
 }
 
+/** 批量导入文件状态 */
+export type BatchFileStatus = 'pending' | 'importing' | 'success' | 'failed' | 'cancelled'
+
+/** 批量导入单个文件信息 */
+export interface BatchFileInfo {
+  path: string
+  name: string
+  status: BatchFileStatus
+  progress?: ImportProgress
+  error?: string
+  diagnosisSuggestion?: string
+  sessionId?: string
+}
+
+/** 批量导入结果 */
+export interface BatchImportResult {
+  total: number
+  success: number
+  failed: number
+  cancelled: number
+  files: BatchFileInfo[]
+}
+
 /**
  * 会话与导入相关的全局状态
  */
@@ -34,6 +57,12 @@ export const useSessionStore = defineStore(
     const importProgress = ref<ImportProgress | null>(null)
     // 是否初始化完成
     const isInitialized = ref(false)
+
+    // 批量导入状态
+    const isBatchImporting = ref(false)
+    const batchFiles = ref<BatchFileInfo[]>([])
+    const batchImportCancelled = ref(false)
+    const batchImportResult = ref<BatchImportResult | null>(null)
 
     // 当前选中的会话
     const currentSession = computed(() => {
@@ -235,6 +264,185 @@ export const useSessionStore = defineStore(
     }
 
     /**
+     * 批量导入多个文件（串行执行）
+     */
+    async function importFilesFromPaths(filePaths: string[]): Promise<BatchImportResult> {
+      if (filePaths.length === 0) {
+        return { total: 0, success: 0, failed: 0, cancelled: 0, files: [] }
+      }
+
+      // 初始化批量导入状态
+      isBatchImporting.value = true
+      batchImportCancelled.value = false
+      batchImportResult.value = null
+
+      // 初始化文件列表
+      batchFiles.value = filePaths.map((path) => ({
+        path,
+        name: path.split('/').pop() || path.split('\\').pop() || path,
+        status: 'pending' as BatchFileStatus,
+      }))
+
+      let successCount = 0
+      let failedCount = 0
+      let cancelledCount = 0
+
+      // 辅助函数：标记剩余文件为已取消
+      const markRemainingAsCancelled = (startIndex: number) => {
+        for (let j = startIndex; j < batchFiles.value.length; j++) {
+          if (batchFiles.value[j].status === 'pending') {
+            batchFiles.value[j].status = 'cancelled'
+            cancelledCount++
+          }
+        }
+      }
+
+      // 串行导入每个文件
+      for (let i = 0; i < batchFiles.value.length; i++) {
+        // 检查是否已取消
+        if (batchImportCancelled.value) {
+          markRemainingAsCancelled(i)
+          break
+        }
+
+        const file = batchFiles.value[i]
+        file.status = 'importing'
+        file.progress = {
+          stage: 'detecting',
+          progress: 0,
+          message: '',
+        }
+
+        try {
+          // 进度队列控制（复用单文件导入的逻辑）
+          const queue: ImportProgress[] = []
+          let isProcessing = false
+          let currentStage = 'reading'
+          let lastStageTime = Date.now()
+          const MIN_STAGE_TIME = 300 // 批量导入时缩短阶段显示时间
+
+          const processQueue = async () => {
+            if (isProcessing) return
+            isProcessing = true
+
+            while (queue.length > 0) {
+              // 在进度处理中也检查取消状态，加快响应
+              if (batchImportCancelled.value) {
+                queue.length = 0
+                break
+              }
+
+              const next = queue[0]
+
+              if (next.stage !== currentStage) {
+                const elapsed = Date.now() - lastStageTime
+                if (elapsed < MIN_STAGE_TIME) {
+                  await new Promise((resolve) => setTimeout(resolve, MIN_STAGE_TIME - elapsed))
+                }
+                currentStage = next.stage
+                lastStageTime = Date.now()
+              }
+
+              file.progress = queue.shift()!
+            }
+            isProcessing = false
+          }
+
+          const unsubscribe = window.chatApi.onImportProgress((progress) => {
+            if (progress.stage === 'done') return
+            queue.push(progress)
+            processQueue()
+          })
+
+          const importResult = await window.chatApi.import(file.path)
+          unsubscribe()
+
+          // 等待进度队列处理完成（但如果已取消则快速跳过）
+          let waitCount = 0
+          while ((queue.length > 0 || isProcessing) && !batchImportCancelled.value && waitCount < 100) {
+            await new Promise((resolve) => setTimeout(resolve, 30))
+            waitCount++
+          }
+
+          // 当前文件导入完成后立即检查取消状态
+          if (batchImportCancelled.value) {
+            // 当前文件已经导入完成，记录其结果
+            if (importResult.success && importResult.sessionId) {
+              file.status = 'success'
+              file.sessionId = importResult.sessionId
+              successCount++
+            } else {
+              file.status = 'failed'
+              file.error = importResult.error || 'error.import_failed'
+              failedCount++
+            }
+            // 标记剩余文件为取消
+            markRemainingAsCancelled(i + 1)
+            break
+          }
+
+          if (importResult.success && importResult.sessionId) {
+            file.status = 'success'
+            file.sessionId = importResult.sessionId
+            successCount++
+
+            // 自动生成会话索引（跳过如果已取消）
+            if (!batchImportCancelled.value) {
+              try {
+                const savedThreshold = localStorage.getItem('sessionGapThreshold')
+                const gapThreshold = savedThreshold ? parseInt(savedThreshold, 10) : 1800
+                await window.sessionApi.generate(importResult.sessionId, gapThreshold)
+              } catch (error) {
+                console.error('自动生成会话索引失败:', error)
+              }
+            }
+          } else {
+            file.status = 'failed'
+            file.error = importResult.error || 'error.import_failed'
+            file.diagnosisSuggestion = importResult.diagnosis?.suggestion
+            failedCount++
+          }
+        } catch (error) {
+          file.status = 'failed'
+          file.error = String(error)
+          failedCount++
+        }
+      }
+
+      // 刷新会话列表
+      await loadSessions()
+
+      // 生成结果
+      const result: BatchImportResult = {
+        total: filePaths.length,
+        success: successCount,
+        failed: failedCount,
+        cancelled: cancelledCount,
+        files: [...batchFiles.value],
+      }
+
+      batchImportResult.value = result
+      isBatchImporting.value = false
+
+      return result
+    }
+
+    /**
+     * 取消批量导入（跳过剩余文件）
+     */
+    function cancelBatchImport() {
+      batchImportCancelled.value = true
+    }
+
+    /**
+     * 清除批量导入结果（用于关闭摘要后重置状态）
+     */
+    function clearBatchImportResult() {
+      batchImportResult.value = null
+      batchFiles.value = []
+    }
+
+    /**
      * 选择指定会话
      */
     function selectSession(id: string) {
@@ -382,6 +590,14 @@ export const useSessionStore = defineStore(
       updateSessionOwnerId,
       togglePinSession,
       isPinned,
+      // 批量导入
+      isBatchImporting,
+      batchFiles,
+      batchImportCancelled,
+      batchImportResult,
+      importFilesFromPaths,
+      cancelBatchImport,
+      clearBatchImportResult,
     }
   },
   {
