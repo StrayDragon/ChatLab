@@ -36,11 +36,11 @@ const features = computed(() => [
             style="-webkit-app-region: drag"
           />
           <!-- Title -->
-          <h1 class="mb-4 text-6xl sm:text-7xl lg:text-8xl font-black tracking-tight text-pink-500">
+          <h1 class="mb-4 select-none text-6xl sm:text-7xl lg:text-8xl font-black tracking-tight text-pink-500">
             {{ t('home.title') }}
           </h1>
           <!-- Description -->
-          <div class="relative inline-block mb-8">
+          <div class="relative select-none inline-block mb-8">
             <p class="text-lg sm:text-2xl text-gray-600 dark:text-gray-400 font-medium">
               {{ t('home.subtitle') }}
             </p>

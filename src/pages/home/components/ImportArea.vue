@@ -8,13 +8,7 @@ import { useSessionStore, type BatchFileInfo } from '@/stores/session'
 
 const { t } = useI18n()
 const sessionStore = useSessionStore()
-const {
-  isImporting,
-  importProgress,
-  isBatchImporting,
-  batchFiles,
-  batchImportResult,
-} = storeToRefs(sessionStore)
+const { isImporting, importProgress, isBatchImporting, batchFiles, batchImportResult } = storeToRefs(sessionStore)
 
 const importError = ref<string | null>(null)
 const diagnosisSuggestion = ref<string | null>(null)
@@ -112,16 +106,16 @@ async function handleFileDrop({ paths }: { files: File[]; paths: string[] }) {
 async function processFilePaths(paths: string[]) {
   if (paths.length === 1) {
     // 单文件导入 - 使用原有逻辑
-  const result = await sessionStore.importFileFromPath(paths[0])
-  if (!result.success && result.error) {
-    importError.value = translateError(result.error)
-    if (result.diagnosisSuggestion) {
-      diagnosisSuggestion.value = result.diagnosisSuggestion
+    const result = await sessionStore.importFileFromPath(paths[0])
+    if (!result.success && result.error) {
+      importError.value = translateError(result.error)
+      if (result.diagnosisSuggestion) {
+        diagnosisSuggestion.value = result.diagnosisSuggestion
+      }
+      await checkImportLog()
+    } else if (result.success && sessionStore.currentSessionId) {
+      await navigateToSession(sessionStore.currentSessionId)
     }
-    await checkImportLog()
-  } else if (result.success && sessionStore.currentSessionId) {
-    await navigateToSession(sessionStore.currentSessionId)
-  }
   } else {
     // 多文件批量导入
     await sessionStore.importFilesFromPaths(paths)
@@ -146,7 +140,9 @@ async function handleGoToSession(sessionId: string) {
 }
 
 function openTutorial() {
-  window.open('https://chatlab.fun/usage/how-to-export.html?utm_source=app', '_blank')
+  const { locale } = useI18n()
+  const langPath = locale.value === 'zh-CN' ? '/cn' : ''
+  window.open(`https://chatlab.fun${langPath}/usage/how-to-export.html?utm_source=app`, '_blank')
 }
 
 // 打开最新的导入日志文件
@@ -281,17 +277,16 @@ function getFileProgressText(file: BatchFileInfo): string {
               {{ t('home.import.batch.importing') }}
             </p>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-              {{ t('home.import.batch.progressCount', { current: (batchProgress?.completed || 0) + 1, total: batchProgress?.total || 0 }) }}
+              {{
+                t('home.import.batch.progressCount', {
+                  current: (batchProgress?.completed || 0) + 1,
+                  total: batchProgress?.total || 0,
+                })
+              }}
             </p>
           </div>
         </div>
-        <UButton
-          color="error"
-          variant="soft"
-          size="sm"
-          icon="i-heroicons-stop-circle"
-          @click="handleCancelBatchImport"
-        >
+        <UButton color="error" variant="soft" size="sm" icon="i-heroicons-stop-circle" @click="handleCancelBatchImport">
           {{ t('home.import.batch.cancel') }}
         </UButton>
       </div>
@@ -330,12 +325,18 @@ function getFileProgressText(file: BatchFileInfo): string {
         <div class="flex items-center gap-3">
           <div
             class="flex h-10 w-10 items-center justify-center rounded-xl"
-            :class="batchImportResult.failed === 0 ? 'bg-green-50 dark:bg-green-500/10' : 'bg-amber-50 dark:bg-amber-500/10'"
+            :class="
+              batchImportResult.failed === 0 ? 'bg-green-50 dark:bg-green-500/10' : 'bg-amber-50 dark:bg-amber-500/10'
+            "
           >
             <UIcon
               :name="batchImportResult.failed === 0 ? 'i-heroicons-check-circle' : 'i-heroicons-exclamation-triangle'"
               class="h-5 w-5"
-              :class="batchImportResult.failed === 0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'"
+              :class="
+                batchImportResult.failed === 0
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-amber-600 dark:text-amber-400'
+              "
             />
           </div>
           <div>
@@ -343,21 +344,17 @@ function getFileProgressText(file: BatchFileInfo): string {
               {{ t('home.import.batch.completed') }}
             </p>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-              {{ t('home.import.batch.summary', {
-                success: batchImportResult.success,
-                failed: batchImportResult.failed,
-                cancelled: batchImportResult.cancelled,
-              }) }}
+              {{
+                t('home.import.batch.summary', {
+                  success: batchImportResult.success,
+                  failed: batchImportResult.failed,
+                  cancelled: batchImportResult.cancelled,
+                })
+              }}
             </p>
           </div>
         </div>
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          icon="i-heroicons-x-mark"
-          @click="handleCloseResult"
-        />
+        <UButton color="neutral" variant="ghost" size="sm" icon="i-heroicons-x-mark" @click="handleCloseResult" />
       </div>
 
       <!-- 文件列表 -->
@@ -372,16 +369,10 @@ function getFileProgressText(file: BatchFileInfo): string {
             <p class="truncate text-sm font-medium text-gray-900 dark:text-white">
               {{ file.name }}
             </p>
-            <p
-              v-if="file.status === 'failed'"
-              class="text-xs text-red-500"
-            >
+            <p v-if="file.status === 'failed'" class="text-xs text-red-500">
               {{ translateError(file.error || 'error.import_failed') }}
             </p>
-            <p
-              v-else-if="file.status === 'cancelled'"
-              class="text-xs text-gray-500"
-            >
+            <p v-else-if="file.status === 'cancelled'" class="text-xs text-gray-500">
               {{ t('home.import.batch.skipped') }}
             </p>
           </div>
@@ -410,27 +401,23 @@ function getFileProgressText(file: BatchFileInfo): string {
         <div
           class="group relative flex w-full cursor-pointer flex-col items-center justify-center rounded-3xl border border-gray-200/50 bg-gray-100/50 px-8 py-10 backdrop-blur-md transition-all duration-300 hover:border-pink-500/30 hover:bg-gray-100/80 hover:shadow-2xl hover:shadow-pink-500/10 focus:outline-none focus:ring-4 focus:ring-pink-500/20 sm:px-12 sm:py-14 dark:border-white/10 dark:bg-gray-800/40 dark:hover:border-pink-500/30 dark:hover:bg-gray-800/60"
           :class="{
-            'border-pink-500/50 bg-pink-50/50 dark:border-pink-400/50 dark:bg-pink-500/10': isDragOver && !isAnyImporting,
+            'border-pink-500/50 bg-pink-50/50 dark:border-pink-400/50 dark:bg-pink-500/10':
+              isDragOver && !isAnyImporting,
             'cursor-not-allowed opacity-70': isAnyImporting,
-            'hover:scale-[1.01]': !isAnyImporting,
           }"
           @click="!isAnyImporting && handleClickImport()"
         >
           <!-- Icon -->
           <div
-            class="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-pink-50 transition-transform duration-300 group-hover:scale-110 dark:bg-pink-500/10"
-            :class="{ 'scale-110': isDragOver && !isAnyImporting, 'animate-pulse': isImporting }"
+            class="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-pink-50 transition-transform duration-300 group-hover:scale-105 dark:bg-pink-500/10"
+            :class="{ 'scale-105': isDragOver && !isAnyImporting, 'animate-pulse': isImporting }"
           >
             <UIcon
               v-if="!isImporting"
               name="i-heroicons-arrow-up-tray"
-              class="h-10 w-10 text-pink-600 transition-transform duration-200 group-hover:-translate-y-1 dark:text-pink-400"
+              class="h-8 w-8 text-pink-600 transition-transform duration-200 group-hover:-translate-y-1 dark:text-pink-400"
             />
-            <UIcon
-              v-else
-              name="i-heroicons-arrow-path"
-              class="h-10 w-10 animate-spin text-pink-600 dark:text-pink-400"
-            />
+            <UIcon v-else name="i-heroicons-arrow-path" class="h-8 w-8 animate-spin text-pink-600 dark:text-pink-400" />
           </div>
 
           <!-- Text -->
