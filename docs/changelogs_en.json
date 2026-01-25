@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.8.0",
+    "date": "2026-01-26",
+    "summary": "This update adds session summaries and vector retrieval; shows release notes after each update; improves parts of the UI; and fixes some known issues.",
+    "changes": [
+      {
+        "type": "feat",
+        "items": [
+          "Remove Help & Feedback from the sidebar",
+          "Add a footer on the home page with common links",
+          "Automatically open release notes after updating to a new version",
+          "Optimize batch session summary generation",
+          "Add session summaries in chat",
+          "Support vector model configuration and retrieval",
+          "Log more detailed errors when chat import fails"
+        ]
+      },
+      {
+        "type": "fix",
+        "items": [
+          "Fix shuakami-jsonl parsing error (fix #50)"
+        ]
+      }
+    ]
+  },
+  {
     "version": "0.7.0",
     "date": "2026-01-23",
     "summary": "Improve the AI chat experience, and refine update logic and charting.",
